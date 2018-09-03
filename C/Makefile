@@ -1,5 +1,8 @@
 CC	= clang
 CFLAGS	= -Ofast -gfull -gdwarf-5 -Wall -Wextra -pipe -static -march=native -fPIE -flto
+EXE	= big_alloc big_coredump coredump divide-zero epoch f-number hex_epoch neodate triangle
+
+all: ${EXE}
 
 big_alloc:
 	$(CC) $(CFLAGS) -o $@ $@.c
@@ -29,4 +32,4 @@ triangle:
 	$(CC) $(CFLAGS) -o $@ $@.c
 
 clean:
-	-rm -v ${EXE}
+	-rm ${EXE}
