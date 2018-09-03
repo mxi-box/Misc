@@ -42,7 +42,7 @@ void print_body(int now)
 	{
 		if(count == 1)
 			putchar('*');
-		else if(count > 1 && count == now)
+		else if(count == now)
 		{
 			printf(" *");
 		}
