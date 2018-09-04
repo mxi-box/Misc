@@ -1,4 +1,4 @@
-/* Triangle of "*" */
+/* Diamond of "*" */
 /* Size will be 2*input+1 */
 
 #include <stdio.h>
