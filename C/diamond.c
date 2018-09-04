@@ -18,12 +18,12 @@ int main(int argc, char **argv)
 	else
 		return 2;
 
-	for(current = 1; current <= (lines * 2 + 1); current++)
+	for(current = 1; current <= (lines + 1); current++)
 	{
 		print_head(current, lines);
 		print_body(current);
 	}
-	for(current = lines * 2 ; current >= 1; current--)
+	for(current = lines; current >= 1; current--)
 	{
 		print_head(current, lines);
 		print_body(current);
@@ -33,8 +33,8 @@ int main(int argc, char **argv)
 
 void print_head(int now, int all)
 {
-	int count=0, out_lines=(all * 2 + 1);
-	for(count=0; count <= (out_lines - now); count++)
+	int count=0;
+	for(count = 0; count <= (all - now); count++)
 		putchar(' ');
 }
 
@@ -55,15 +55,3 @@ void print_body(int now)
 	}
 	putchar('\n');
 }
-
-void print_tail(int count)
-{
-	int i=0, columns=(count * 4 + 2);
-	char *out = malloc(columns + 1);
-
-	while(i <= columns)
-		out[i++]='*';
-	out[i]='\0';
-	puts(out);
-}
-
