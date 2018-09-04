@@ -1,5 +1,5 @@
-CC	= clang
-CFLAGS	= -Ofast -gfull -gdwarf-5 -Wall -Wextra -pipe -static -march=native -fPIE -flto
+CC	= cc
+CFLAGS	= -O2 -g -Wall -Wextra -pipe -fPIE -fPIC
 EXE	= big_alloc big_coredump coredump divide-zero epoch f-number hex_epoch neodate triangle diamond
 
 all: ${EXE}
