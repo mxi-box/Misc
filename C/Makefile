@@ -34,4 +34,4 @@ triangle:
 diamond:
 	$(CC) $(CFLAGS) -o $@ $@.c
 clean:
-	-rm ${EXE}
+	-rm -f ${EXE}
