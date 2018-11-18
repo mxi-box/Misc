@@ -40,5 +40,7 @@ ackermann:
 arc4:
 	$(CC) $(CFLAGS) -o $@ $@.c
 
+countline:
+	wc -l *.c
 clean:
 	-rm -f ${EXE}
