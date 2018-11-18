@@ -1,6 +1,6 @@
 CC	= cc
 CFLAGS	= -O2 -g -Wall -Wextra -pipe -fPIE -fPIC
-EXE	= big_alloc big_coredump coredump divide-zero epoch f-number hex_epoch neodate triangle diamond ackermann
+EXE	= big_alloc big_coredump coredump divide-zero epoch f-number hex_epoch neodate triangle diamond ackermann arc4
 
 all: ${EXE}
 
@@ -35,6 +35,9 @@ diamond:
 	$(CC) $(CFLAGS) -o $@ $@.c
 
 ackermann:
+	$(CC) $(CFLAGS) -o $@ $@.c
+
+arc4:
 	$(CC) $(CFLAGS) -o $@ $@.c
 
 clean:
