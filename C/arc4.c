@@ -155,8 +155,6 @@ int main(int argc, char **argv)
 		while((input = fgetc(infile)) != EOF && ret != EOF)
 		{
 			ret = fputc(prga(sbox, (char)input), outfile);
-			if(verbose)
-				fprintf(stderr, "RET=%#x\n", ret);
 		}
 		fclose(infile);
 	}
