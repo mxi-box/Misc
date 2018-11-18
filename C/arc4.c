@@ -19,6 +19,7 @@ char *str;
 size_t strlength=0;
 size_t keylength=0;
 
+int verbose=0;
 uint8_t status=0;
 #define ST_KEY	0x01
 #define ST_IN	0x02
@@ -48,19 +49,25 @@ void ksa(uint8_t *sbox, uint8_t *key, size_t keylength)
 uint8_t prga(uint8_t *sbox, uint8_t input)
 {
 	static int i=0, j=0;
+	uint8_t output=0;
 	i = (i + 1) & 0xFF;
 	j = (j + sbox[i]) & 0xFF;
 	swap(sbox + i, sbox +j);
-	return input ^ sbox[(sbox[i] + sbox[j]) & 0xFF];
+	output = input ^ sbox[(sbox[i] + sbox[j]) & 0xFF];
+	if(verbose)
+		printf("PRGA: S[i = %#x]=%#x,\tS[j = %#x]=%#x,\tIN=%#x,\tOUT=%#x\n", i, sbox[i], j, sbox[j], input, output);
+	return output;
 }
 
 int main(int argc, char **argv)
 {
-	char input=0;
+	setvbuf(stderr, NULL, _IONBF, 0);
+
+	int input=0;
 	int ret=0;
 	size_t ptr=0;
 	int opt;
-	while((opt = getopt(argc, argv, "hs:i:o:k:")) != -1)
+	while((opt = getopt(argc, argv, "hs:i:o:k:v")) != -1)
 	{
 		switch(opt)
 		{
@@ -111,6 +118,9 @@ int main(int argc, char **argv)
 				}
 				status |= ST_KEY;
 				break;
+			case 'v':
+				verbose++;
+				break;
 			case 'h': /* Help */
 				printf("Usage: %s [-h] [-i infile] [-o outfile] [-k key]\n", argv[0]);
 				exit(0);
@@ -128,11 +138,25 @@ int main(int argc, char **argv)
 	}
 
 	ksa(sbox, key, keylength);
+
+	int count=0;
+	if(verbose)
+	{
+		for(count=0; count < 256; count++)
+		{
+			fprintf(stderr, "S[0x%02x]=0x%02x ", count, sbox[count]);
+			if((count & 0x0F)  == 7)
+				fputc('\n', stderr);
+		}
+	}
+
 	if(status & ST_IN)
 	{
 		while((input = fgetc(infile)) != EOF && ret != EOF)
 		{
-			ret = fputc(prga(sbox, input), outfile);
+			ret = fputc(prga(sbox, (char)input), outfile);
+			if(verbose)
+				fprintf(stderr, "RET=%#x\n", ret);
 		}
 		fclose(infile);
 	}
