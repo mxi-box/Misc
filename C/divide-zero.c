@@ -5,5 +5,5 @@
 int main(void)
 {
 	int x=0, y=1, z=0;
-	z=y/x;
+	return z=y/x;
 }
