@@ -37,13 +37,17 @@
 #include <limits.h>
 #include <string.h>
 
-#define LENGTH 256
+#define LENGTH 64
 
 #define POS 0	/* Positive */
 #define NEG -1	/* Negative */
 
 #define NEG_CHAR	-1
 #define INVAILD_CHAR	-2
+
+#define A	1
+#define B	-1
+#define SAME	0
 
 struct _bignum
 {
@@ -85,31 +89,48 @@ void bignum_destroy(bignum_t **bignum)
 	*bignum = NULL;
 }
 
-int8_t bignum_cmp(bignum_t *src1, bignum_t *src2)
+/* Compares absolute value, doesn't care sign */
+int8_t bignum_digitcmp(bignum_t *src1, bignum_t *src2)
 {
 	int ptr = 0;
 	if(src1->ndigit != src2->ndigit)
 	{
 		if(src1->ndigit > src2->ndigit)
-			return 1;
+			return A;
 		else if(src1->ndigit < src2->ndigit)
-			return -1;
-		else
-			return 0;
+			return B;
 	}
 	else
 	{
 		for(ptr = src1->ndigit - 1; ptr >= 0; ptr--)
 		{
 			if(src1->digit[ptr] > src2->digit[ptr])
-				return 1;
+				return A;
 			else if(src1->digit[ptr] < src2->digit[ptr])
-				return -1;
+				return B;
 		}
-		/* They are completely equal */
-		return 0;
 	}
+	/* They are completely equal */
+	return SAME;
 }
+
+/* This one does care about sign */
+int8_t bignum_cmp(bignum_t *src1, bignum_t *src2)
+{
+	if(src1->sign == src2->sign)
+		return src1->sign ?
+			- bignum_digitcmp(src1, src2) :	/* Negative, reverse the result */
+			bignum_digitcmp(src1, src2);
+	else
+	{
+		if(src1->sign == POS)
+			return A;
+		else if(src2->sign == POS)
+			return B;
+	}
+	return 0;
+}
+
 
 void bignum_setzero(bignum_t *bignum)
 {
@@ -119,10 +140,21 @@ void bignum_setzero(bignum_t *bignum)
 	bignum->ndigit=0;
 }
 
+unsigned int bignum_len(bignum_t *bignum)
+{
+	unsigned int ptr = bignum->size;
+	while(ptr > 0)
+	{
+		if(bignum->digit[--ptr] != 0x00)
+			return ptr + 1; /* Pointer position to size */
+	}
+}
+
 void bignum_rawadd(bignum_t *big, bignum_t *small, bignum_t *dst)
 {
 	unsigned int ptr=0;
 
+	bignum_setzero(dst);
 	while(ptr < small->ndigit)
 	{
 		dst->digit[ptr] += big->digit[ptr] + small->digit[ptr];
@@ -136,31 +168,98 @@ void bignum_rawadd(bignum_t *big, bignum_t *small, bignum_t *dst)
 		CARRY(dst, ptr);
 		ptr++;
 	}
-	dst->ndigit = ptr;	/* Length of dst */
 }
 
 void bignum_rawsub(bignum_t *big, bignum_t *small, bignum_t *dst)
 {
 	unsigned int ptr=0;
 
+	bignum_setzero(dst);
 	while(ptr < small->ndigit)
 	{
 		dst->digit[ptr] += big->digit[ptr] - small->digit[ptr];
 		BORROW(dst, ptr);
+		ptr++;
 	}
 
 	while(ptr < big->ndigit)
 	{
 		dst->digit[ptr] += big->digit[ptr];
-		CARRY(dst, ptr);
+		BORROW(dst, ptr);
 		ptr++;
 	}
-	dst->ndigit = ptr;
 }
 
 void bignum_add(bignum_t *src1, bignum_t *src2, bignum_t *dst)
 {
-/* Stub */
+	if(src1->sign == src2->sign)
+	{
+		bignum_rawadd(src1, src2, dst);
+		dst->sign = src1->sign;
+	}
+	else
+	{
+		int8_t cmp = bignum_digitcmp(src1, src2);
+			if(src1->sign == POS && cmp == A)		/* (+A) + (B) */
+			{
+				dst->sign = POS;
+				bignum_rawsub(src1, src2, dst);
+			}
+			else if(src1->sign == NEG && cmp == B)		/* (+B) + (-A) */
+			{
+				dst->sign = POS;
+				bignum_rawsub(src2, src1, dst);
+			}
+			else if(src1->sign == NEG && cmp == A)		/* (-A) + (B) */
+			{
+				dst->sign = NEG;
+				bignum_rawsub(src1, src2, dst);
+			}
+			else if(src1->sign == POS && cmp == B)		/* (A) + (-B) */
+			{
+				dst->sign = NEG;
+				bignum_rawsub(src2, src1, dst);
+			}
+	}
+
+	dst->ndigit = bignum_len(dst);
+	return;
+}
+
+void bignum_sub(bignum_t *src1, bignum_t *src2, bignum_t *dst)
+{
+	if(src1->sign == src2->sign)
+	{
+		bignum_rawsub(src1, src2, dst);
+		dst->sign = src1->sign;
+	}
+	else
+	{
+		int8_t cmp = bignum_digitcmp(src1, src2);
+		if(src1->sign == POS && cmp == A)			/* (+A) - (-B) */
+		{
+			dst->sign = POS;
+			bignum_rawadd(src1, src2, dst);
+		}
+		else if(src1->sign == POS && cmp == B)			/* (A) - (-B) */
+		{
+			dst->sign = NEG;
+			bignum_rawsub(src2, src1, dst);
+		}
+		else if(src1->sign == NEG && cmp == A)			/* (-A) - (B) */
+		{
+			dst->sign = NEG;
+			bignum_rawadd(src1, src2, dst);
+		}
+		else if(src1->sign == NEG && cmp == B)			/* (-A) + (B) */
+		{
+			dst->sign = NEG;
+			bignum_rawadd(src2, src1, dst);
+		}
+	}
+
+	dst->ndigit = bignum_len(dst);
+	return;
 }
 
 int chartoint(char c)
@@ -183,26 +282,36 @@ char inttochar(int8_t c)
 
 void bignum_strtonum(char *str, bignum_t *dst)
 {
-	int ptr=0;
 	int value=0;
-	size_t endptr=strlen(str) - 1;
-	for(ptr=endptr; ptr >= 0; ptr--)
+	size_t end=strlen(str) - 1;
+	unsigned int ptr=end;
+	size_t strptr=0;
+	while(strptr <= end)
 	{
-		value=chartoint(str[ptr]);
+		value=chartoint(str[strptr++]);
 		if(value == NEG_CHAR)
+		{
 			dst->sign = NEG;
+			ptr--;
+		}
 		else if(value == INVAILD_CHAR)
+		{
 			puts("?INVAILD_CHAR");
+			return;
+		}
 		else
-			dst->digit[endptr - ptr] = (int8_t)value;
+		{
+			dst->digit[ptr--] = (int8_t)value;
+		}
 	}
-	dst->ndigit = strlen(str) - dst->sign;
+	dst->ndigit = bignum_len(dst);
 }
 
 void bignum_prints(char *str, size_t size, bignum_t *bignum)
 {
 	/* Both will be used as index */
 	size_t len = bignum->ndigit;
+	size_t end = len;
 	unsigned int numptr=0;
 	unsigned int strptr=len - 1;
 
@@ -214,19 +323,22 @@ void bignum_prints(char *str, size_t size, bignum_t *bignum)
 	}
 	if(len > size)
 		return;		/* Not sufficient space */
-	while(numptr < len)
+	while(numptr < end)
+		str[strptr--] = inttochar(bignum->digit[numptr++]);
+
+	if(bignum->ndigit == 0)	/* If there's no digits */
 	{
-		str[strptr] = inttochar(bignum->digit[numptr]);
-		strptr--;
-		numptr++;
+		str[++strptr]='0';
+		str[++strptr] = 0x00;
 	}
+	return;
 }
 
 void bignum_dump(bignum_t *bignum)
 {
 	unsigned int ptr = bignum->size;
 	fprintf(stderr, "SIZE=%u\n", bignum->size);
-	fprintf(stderr, "SIGN=%c\n", "+-"[bignum->sign]);
+	fprintf(stderr, "SIGN=%s\n", bignum->sign ? "NEG" : "POS");	/* NEG == -1, POS == 0 */
 	fprintf(stderr, "NDIGIT=%u\n", bignum->ndigit);
 	while(ptr > 0)
 	{
@@ -250,16 +362,24 @@ int main(void)
 	{
 		bignum_strtonum(stra, a);
 		bignum_strtonum(strb, b);
-
+		bignum_dump(a);
+		bignum_dump(b);
 		switch(operator)
 		{
 			case '+':
+				bignum_add(a, b, c);
+				break;
 			case '-':
+				bignum_sub(a, b, c);
+				break;
 			case '*':
 			case '/':
 			default:
 				return 0;
 		}
+		bignum_dump(c);
+		bignum_prints(strc, LENGTH, c);
+		puts(strc);
 	}
 	return 0;
 }
