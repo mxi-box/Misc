@@ -119,43 +119,48 @@ void bignum_setzero(bignum_t *bignum)
 	bignum->ndigit=0;
 }
 
-void bignum_rawadd(bignum_t *src1, bignum_t *src2, bignum_t *dst)
+void bignum_rawadd(bignum_t *big, bignum_t *small, bignum_t *dst)
 {
 	unsigned int ptr=0;
 
-	while(ptr < src2->ndigit)
+	while(ptr < small->ndigit)
 	{
-		dst->digit[ptr] += src1->digit[ptr] + src2->digit[ptr];
+		dst->digit[ptr] += big->digit[ptr] + small->digit[ptr];
 		CARRY(dst, ptr);
 		ptr++;
 	}
 
-	while(ptr < src1->ndigit)	/* Add rest of src1 it to dst */
+	while(ptr < big->ndigit)	/* Add rest of big it to dst */
 	{
-		dst->digit[ptr] += src1->digit[ptr];
+		dst->digit[ptr] += big->digit[ptr];
 		CARRY(dst, ptr);
 		ptr++;
 	}
 	dst->ndigit = ptr;	/* Length of dst */
 }
 
-void bignum_rawsub(bignum_t *src1, bignum_t *src2, bignum_t *dst)
+void bignum_rawsub(bignum_t *big, bignum_t *small, bignum_t *dst)
 {
 	unsigned int ptr=0;
 
-	while(ptr < src2->ndigit)
+	while(ptr < small->ndigit)
 	{
-		dst->digit[ptr] += src1->digit[ptr] - src2->digit[ptr];
+		dst->digit[ptr] += big->digit[ptr] - small->digit[ptr];
 		BORROW(dst, ptr);
 	}
 
-	while(ptr < src1->ndigit)
+	while(ptr < big->ndigit)
 	{
-		dst->digit[ptr] += src1->digit[ptr];
+		dst->digit[ptr] += big->digit[ptr];
 		CARRY(dst, ptr);
 		ptr++;
 	}
 	dst->ndigit = ptr;
+}
+
+void bignum_add(bignum_t *src1, bignum_t *src2, bignum_t *dst)
+{
+/* Stub */
 }
 
 int chartoint(char c)
@@ -245,6 +250,16 @@ int main(void)
 	{
 		bignum_strtonum(stra, a);
 		bignum_strtonum(strb, b);
+
+		switch(operator)
+		{
+			case '+':
+			case '-':
+			case '*':
+			case '/':
+			default:
+				return 0;
+		}
 	}
 	return 0;
 }
