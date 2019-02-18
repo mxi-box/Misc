@@ -119,26 +119,9 @@ void bignum_setzero(bignum_t *bignum)
 	bignum->ndigit=0;
 }
 
-void bignum_rawadd(bignum_t *op1, bignum_t *op2, bignum_t *dst)
+void bignum_rawadd(bignum_t *src1, bignum_t *src2, bignum_t *dst)
 {
 	unsigned int ptr=0;
-	bignum_t *src1, *src2;
-
-	/* Keep src1 the longer one, src2 the shorter one */
-	if(op2->ndigit > op1->ndigit)
-	{
-		src1 = op2;
-		src2 = op1;
-	}
-	else
-	{
-		src1 = op1;
-		src2 = op2;
-	}
-
-	/* Invaild Operation Checking */
-	if(dst->size < (src1->ndigit + 1))
-		goto end;
 
 	while(ptr < src2->ndigit)
 	{
@@ -154,31 +137,25 @@ void bignum_rawadd(bignum_t *op1, bignum_t *op2, bignum_t *dst)
 		ptr++;
 	}
 	dst->ndigit = ptr;	/* Length of dst */
-end:
-	return;
 }
 
-void bignum_rawsub(bignum_t *op1, bignum_t *op2, bignum_t *dst)
+void bignum_rawsub(bignum_t *src1, bignum_t *src2, bignum_t *dst)
 {
 	unsigned int ptr=0;
-	bignum_t *src1, *src2;
-
-	/* Keep src1 the larger one */
-	if(bignum_cmp(op1, op2) == 1)
-	{
-		src1 = op1;
-		src2 = op2;
-	}
-	else
-	{
-		src1 = op2;
-		src2 = op1;
-	}
 
 	while(ptr < src2->ndigit)
 	{
-		/* Stub */
+		dst->digit[ptr] += src1->digit[ptr] - src2->digit[ptr];
+		BORROW(dst, ptr);
 	}
+
+	while(ptr < src1->ndigit)
+	{
+		dst->digit[ptr] += src1->digit[ptr];
+		CARRY(dst, ptr);
+		ptr++;
+	}
+	dst->ndigit = ptr;
 }
 
 int chartoint(char c)
@@ -266,6 +243,8 @@ int main(void)
 
 	while(scanf("%s %c %s\n", stra, &operator, strb) > 0)
 	{
+		bignum_strtonum(stra, a);
+		bignum_strtonum(strb, b);
 	}
 	return 0;
 }
