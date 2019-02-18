@@ -50,7 +50,7 @@ struct _bignum
 	unsigned int size;
 	unsigned int ndigit; /* Number of digits */
 	int8_t sign;
-	int8_t *digit;	/* Signed because it will be easier to handle subtraction */
+	int8_t *digit;	/* Signed because it would be easier to handle subtraction */
 };
 
 /* Digits is stored as little endian BCD (One digit per byte, so wasteful?) */
