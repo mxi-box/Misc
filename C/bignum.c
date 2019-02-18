@@ -60,14 +60,14 @@ typedef struct _bignum bignum_t;
 #define CARRY(bignum, ptr)	\
 		if(bignum->digit[ptr] >= 10)					\
 		{								\
-			bignum->digit[ptr + 1] = bignum->digit[ptr] / 10;	\
-			bignum->digit[ptr] %= 10;				\
+			bignum->digit[ptr + 1] += bignum->digit[ptr] / 10;	\
+			bignum->digit[ptr] %= -10;				\
 		}
 
 #define BORROW(bignum, ptr)	\
 		if(bignum->digit[ptr] < 0)					\
 		{								\
-			bignum->digit[ptr + 1]--;				\
+			bignum->digit[ptr + 1] -= bignum->digit[ptr] / 10 + 1;	\
 			bignum->digit[ptr] += 10;				\
 		}
 
