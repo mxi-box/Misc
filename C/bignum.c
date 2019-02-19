@@ -37,7 +37,7 @@
 #include <limits.h>
 #include <string.h>
 
-#define LENGTH 64
+#define LENGTH 512
 
 #define POS 0	/* Positive */
 #define NEG -1	/* Negative */
@@ -148,6 +148,7 @@ unsigned int bignum_len(bignum_t *bignum)
 		if(bignum->digit[--ptr] != 0x00)
 			return ptr + 1; /* Pointer position to size */
 	}
+	return 0;
 }
 
 void bignum_rawadd(bignum_t *big, bignum_t *small, bignum_t *dst)
@@ -190,35 +191,39 @@ void bignum_rawsub(bignum_t *big, bignum_t *small, bignum_t *dst)
 	}
 }
 
-void bignum_add(bignum_t *src1, bignum_t *src2, bignum_t *dst)
+void bignum_add(bignum_t *a, bignum_t *b, bignum_t *dst)
 {
-	if(src1->sign == src2->sign)
+	/* Size checking */
+	if(dst->size < (a->ndigit + b->ndigit))
+		return;
+
+	if(a->sign == b->sign)
 	{
-		bignum_rawadd(src1, src2, dst);
-		dst->sign = src1->sign;
+		bignum_rawadd(a, b, dst);
+		dst->sign = a->sign;
 	}
 	else
 	{
-		int8_t cmp = bignum_digitcmp(src1, src2);
-			if(src1->sign == POS && cmp == A)		/* (+A) + (B) */
+			int8_t cmp = bignum_digitcmp(a, b);
+			if(a->sign == POS && cmp == A)		/* A > B, (A) + (B) */
 			{
 				dst->sign = POS;
-				bignum_rawsub(src1, src2, dst);
+				bignum_rawsub(a, b, dst);
 			}
-			else if(src1->sign == NEG && cmp == B)		/* (+B) + (-A) */
+			else if(a->sign == NEG && cmp == B)		/* B > A, (B) + (-A) */
 			{
 				dst->sign = POS;
-				bignum_rawsub(src2, src1, dst);
+				bignum_rawsub(b, a, dst);
 			}
-			else if(src1->sign == NEG && cmp == A)		/* (-A) + (B) */
+			else if(a->sign == NEG && cmp == A)		/* A > B, (-A) + (B) */
 			{
 				dst->sign = NEG;
-				bignum_rawsub(src1, src2, dst);
+				bignum_rawsub(a, b, dst);
 			}
-			else if(src1->sign == POS && cmp == B)		/* (A) + (-B) */
+			else if(a->sign == POS && cmp == B)		/* B > A, (A) + (-B) */
 			{
 				dst->sign = NEG;
-				bignum_rawsub(src2, src1, dst);
+				bignum_rawsub(b, a, dst);
 			}
 	}
 
@@ -226,35 +231,48 @@ void bignum_add(bignum_t *src1, bignum_t *src2, bignum_t *dst)
 	return;
 }
 
-void bignum_sub(bignum_t *src1, bignum_t *src2, bignum_t *dst)
+void bignum_sub(bignum_t *a, bignum_t *b, bignum_t *dst)
 {
-	if(src1->sign == src2->sign)
+	/* Size checking */
+	if(dst->size < (a->ndigit + b->ndigit))
+		return;
+
+	int8_t cmp = bignum_digitcmp(a, b);
+
+	if(a->sign == b->sign)
 	{
-		bignum_rawsub(src1, src2, dst);
-		dst->sign = src1->sign;
+		if(cmp == A)				/* A > B, (+-A) - (+-B) */
+		{
+			bignum_rawsub(a, b, dst);
+			dst->sign = POS;
+		}
+		else if(cmp == B)			/* B > A, (+-A) - (+-B) */
+		{
+			bignum_rawsub(b, a, dst);
+			dst->sign = NEG;
+		}
 	}
 	else
 	{
-		int8_t cmp = bignum_digitcmp(src1, src2);
-		if(src1->sign == POS && cmp == A)			/* (+A) - (-B) */
+		if(a->sign == POS && cmp == A)			/* A > B, (A) - (-B) */
 		{
 			dst->sign = POS;
-			bignum_rawadd(src1, src2, dst);
+			bignum_rawadd(a, b, dst);
 		}
-		else if(src1->sign == POS && cmp == B)			/* (A) - (-B) */
+		else if(a->sign == POS && cmp == B)			/* A < B, (A) - (-B) */
 		{
 			dst->sign = NEG;
-			bignum_rawsub(src2, src1, dst);
+			bignum_rawsub(b, a, dst);
 		}
-		else if(src1->sign == NEG && cmp == A)			/* (-A) - (B) */
+		else if(a->sign == NEG && cmp == A)			/* A > B, (-A) - (B) */
 		{
 			dst->sign = NEG;
-			bignum_rawadd(src1, src2, dst);
+			bignum_rawadd(a, b, dst);
 		}
-		else if(src1->sign == NEG && cmp == B)			/* (-A) + (B) */
+		else if(a->sign == NEG && cmp == B)			/* A < B, (-A) + (B) */
 		{
 			dst->sign = NEG;
-			bignum_rawadd(src2, src1, dst);
+			bignum_rawadd(b, a, dst);
 		}
 	}
 
