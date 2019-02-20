@@ -336,12 +336,11 @@ void bignum_mul(bignum_t *a, bignum_t *b, bignum_t *dst)
 	return;
 }
 
+/* Left Shift */
 void bignum_lshift(bignum_t *bignum, unsigned int ndigit)
 {
-	unsigned int ptr=0;
 	unsigned int size = bignum->size;
-
-	ptr = size;
+	unsigned int ptr = size;
 
 	while(ptr != 0)
 	{
@@ -356,6 +355,34 @@ void bignum_lshift(bignum_t *bignum, unsigned int ndigit)
 
 	bignum->ndigit = bignum_len(bignum);
 	return;
+}
+
+/* Right Shift */
+void bignum_rshift(bignum_t *bignum, unsigned int ndigit)
+{
+	unsigned int size = bignum->size;
+	unsigned int ptr = 0;
+
+	while(ptr != size)
+	{
+		if(ptr <= size - ndigit)
+			bignum->digit[ptr] = bignum->digit[ptr + ndigit];
+		ptr++;
+	}
+
+	/* Clear moved out digits */
+	for(ptr = size - 1; ptr >= size - ndigit; ptr--)
+		bignum->digit[ptr] = 0;
+
+	bignum->ndigit = bignum_len(bignum);
+	return;
+}
+
+/* Division */
+void bignum_rawdiv(bignum_t *src, bignum_t *div, bignum_t *q, bignum_t *r)
+{
+	bignum_copy(src, r);
+	/* Stub */
 }
 
 int chartoint(char c)
@@ -467,7 +494,7 @@ int main(void)
 	bignum_t *b = bignum_init(LENGTH);
 	bignum_t *c = bignum_init(LENGTH);
 
-	while(scanf("%s %c %s\n", stra, &operator, strb) > 0)
+	while(scanf("%s %c %s", stra, &operator, strb) > 0)
 	{
 		bignum_strtonum(stra, a);
 		bignum_strtonum(strb, b);
@@ -483,6 +510,14 @@ int main(void)
 				break;
 			case '*':
 				bignum_mul(a, b, c);
+				break;
+			case '<':
+				bignum_copy(a, c);
+				bignum_lshift(c, 5);
+				break;
+			case '>':
+				bignum_copy(a, c);
+				bignum_rshift(c, 5);
 				break;
 			case '/':
 			default:
