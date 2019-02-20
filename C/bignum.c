@@ -37,7 +37,8 @@
 #include <limits.h>
 #include <string.h>
 
-#define LENGTH 512
+#define BASE	10
+#define LENGTH	512
 
 #define POS 0	/* Positive */
 #define NEG -1	/* Negative */
@@ -62,7 +63,7 @@ struct _bignum
 typedef struct _bignum bignum_t;
 
 #define CARRY(bignum, ptr)	\
-		if(bignum->digit[ptr] >= 10)					\
+		if(bignum->digit[ptr] >= BASE)					\
 		{								\
 			bignum->digit[ptr + 1] += bignum->digit[ptr] / 10;	\
 			bignum->digit[ptr] %= -10;				\
@@ -71,9 +72,26 @@ typedef struct _bignum bignum_t;
 #define BORROW(bignum, ptr)	\
 		if(bignum->digit[ptr] < 0)					\
 		{								\
-			bignum->digit[ptr + 1] -= bignum->digit[ptr] / 10 + 1;	\
-			bignum->digit[ptr] += 10;				\
+			bignum->digit[ptr + 1] -= bignum->digit[ptr] / BASE + 1;\
+			bignum->digit[ptr] += BASE;				\
 		}
+
+/* Panic Codes */
+#define P_SIZE	0
+
+void panic(int type)
+{
+	switch(type)
+	{
+		case P_SIZE:
+			fputs("?SIZE\n", stderr);
+			break;
+		default:
+			exit(8);
+	}
+
+	exit(type);
+}
 
 bignum_t *bignum_init(unsigned int size)
 {
@@ -85,6 +103,7 @@ bignum_t *bignum_init(unsigned int size)
 
 void bignum_destroy(bignum_t **bignum)
 {
+	free((*bignum)->digit);
 	free(*bignum);
 	*bignum = NULL;
 }
@@ -138,6 +157,15 @@ void bignum_setzero(bignum_t *bignum)
 	while((ptr--) > 0)
 		bignum->digit[ptr] = 0;
 	bignum->ndigit=0;
+}
+
+void bignum_copy(bignum_t *src, bignum_t *dst)
+{
+	free(dst->digit);
+	memcpy(dst, src, sizeof(bignum_t));
+	dst->digit = calloc(src->size, sizeof(int8_t));
+	memcpy(dst->digit, src->digit, src->size);
+	return;
 }
 
 unsigned int bignum_len(bignum_t *bignum)
@@ -195,7 +223,7 @@ void bignum_add(bignum_t *a, bignum_t *b, bignum_t *dst)
 {
 	/* Size checking */
 	if(dst->size < (a->ndigit + b->ndigit))
-		return;
+		panic(P_SIZE);
 
 	if(a->sign == b->sign)
 	{
@@ -235,7 +263,7 @@ void bignum_sub(bignum_t *a, bignum_t *b, bignum_t *dst)
 {
 	/* Size checking */
 	if(dst->size < (a->ndigit + b->ndigit))
-		return;
+		panic(P_SIZE);
 
 	int8_t cmp = bignum_digitcmp(a, b);
 
@@ -277,6 +305,56 @@ void bignum_sub(bignum_t *a, bignum_t *b, bignum_t *dst)
 	}
 
 	dst->ndigit = bignum_len(dst);
+	return;
+}
+
+void bignum_rawmul(bignum_t *large, bignum_t *small, bignum_t *dst)
+{
+	unsigned int i=0, j=0;
+
+	bignum_setzero(dst);
+	for(i=0; i < small->ndigit; i++)
+	{
+		for(j=0; j < large->ndigit; j++)
+		{
+			dst->digit[j+i] +=  small->digit[i] * large->digit[j];
+			CARRY(dst, j+i);
+		}
+	}
+
+	dst->ndigit = bignum_len(dst);
+	return;
+}
+
+void bignum_mul(bignum_t *a, bignum_t *b, bignum_t *dst)
+{
+	if((a->ndigit + a->ndigit) > dst->size)
+		panic(P_SIZE);
+
+	dst->sign = a->sign ^ b->sign;
+	bignum_rawmul(a, b, dst);
+	return;
+}
+
+void bignum_lshift(bignum_t *bignum, unsigned int ndigit)
+{
+	unsigned int ptr=0;
+	unsigned int size = bignum->size;
+
+	ptr = size;
+
+	while(ptr != 0)
+	{
+		--ptr;
+		if((ptr + ndigit) < size)
+			bignum->digit[ptr + ndigit] = bignum->digit[ptr];
+	}
+
+	/* Clear moved out digits */
+	for(ptr = 0; ptr < ndigit; ptr++)
+		bignum->digit[ptr] = 0;
+
+	bignum->ndigit = bignum_len(bignum);
 	return;
 }
 
@@ -341,6 +419,8 @@ void bignum_prints(char *str, size_t size, bignum_t *bignum)
 	}
 	if(len > size)
 		return;		/* Not sufficient space */
+
+	str[strptr] = '\0';
 	while(numptr < end)
 		str[strptr--] = inttochar(bignum->digit[numptr++]);
 
@@ -355,6 +435,7 @@ void bignum_prints(char *str, size_t size, bignum_t *bignum)
 void bignum_dump(bignum_t *bignum)
 {
 	unsigned int ptr = bignum->size;
+	fputs("=== DUMP ===\n", stderr);
 	fprintf(stderr, "SIZE=%u\n", bignum->size);
 	fprintf(stderr, "SIGN=%s\n", bignum->sign ? "NEG" : "POS");	/* NEG == -1, POS == 0 */
 	fprintf(stderr, "NDIGIT=%u\n", bignum->ndigit);
@@ -365,13 +446,23 @@ void bignum_dump(bignum_t *bignum)
 		if((ptr & 0x3F) == 0)
 			putc('\n', stderr);
 	}
-	putc('\n', stderr);
+	fputs("=== END ===\n\n", stderr);
 }
 
 int main(void)
 {
+	int i=0;
 	char operator=0;
 	char stra[LENGTH], strb[LENGTH], strc[LENGTH];
+
+	/* Because of the way cache works, this thing's performance might be somewhat poor */
+	for(i=0; i < LENGTH; i++)
+	{
+		stra[i] = 0;
+		strb[i] = 0;
+		strc[i] = 0;
+	}
+
 	bignum_t *a = bignum_init(LENGTH);
 	bignum_t *b = bignum_init(LENGTH);
 	bignum_t *c = bignum_init(LENGTH);
@@ -391,6 +482,8 @@ int main(void)
 				bignum_sub(a, b, c);
 				break;
 			case '*':
+				bignum_mul(a, b, c);
+				break;
 			case '/':
 			default:
 				return 0;
