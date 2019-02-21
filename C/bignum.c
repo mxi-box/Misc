@@ -37,18 +37,18 @@
 #include <limits.h>
 #include <string.h>
 
-#define BASE	10
-#define LENGTH	512
+#define _BASE	10
+#define _LENGTH	512
 
-#define POS 0	/* Positive */
-#define NEG -1	/* Negative */
+#define _POS 0	/* Positive */
+#define _NEG -1	/* Negative */
 
-#define NEG_CHAR	-1
-#define INVAILD_CHAR	-2
+#define _NEG_CHAR	-1
+#define _INVAILD_CHAR	-2
 
-#define A	1
-#define B	-1
-#define SAME	0
+#define _A	1
+#define _B	-1
+#define _SAME	0
 
 struct _bignum
 {
@@ -63,21 +63,22 @@ struct _bignum
 typedef struct _bignum bignum_t;
 
 #define CARRY(bignum, ptr)	\
-		if(bignum->digit[ptr] >= BASE)					\
+		if(bignum->digit[ptr] >= _BASE)					\
 		{								\
-			bignum->digit[ptr + 1] += bignum->digit[ptr] / 10;	\
-			bignum->digit[ptr] %= -10;				\
+			bignum->digit[ptr + 1] += bignum->digit[ptr] / _BASE;	\
+			bignum->digit[ptr] %= _BASE;				\
 		}
 
 #define BORROW(bignum, ptr)	\
 		if(bignum->digit[ptr] < 0)					\
 		{								\
-			bignum->digit[ptr + 1] -= bignum->digit[ptr] / BASE + 1;\
-			bignum->digit[ptr] += BASE;				\
+			bignum->digit[ptr + 1] -= bignum->digit[ptr] / _BASE + 1;\
+			bignum->digit[ptr] += _BASE;				\
 		}
 
 /* Panic Codes */
 #define P_SIZE	0
+#define P_INVAILD_CHAR	1
 
 void panic(int type)
 {
@@ -86,10 +87,12 @@ void panic(int type)
 		case P_SIZE:
 			fputs("?SIZE\n", stderr);
 			break;
+		case P_INVAILD_CHAR:
+			fputs("?INVAILD_CHAR\n", stderr);
+			break;
 		default:
 			exit(8);
 	}
-
 	exit(type);
 }
 
@@ -115,22 +118,22 @@ int8_t bignum_digitcmp(bignum_t *src1, bignum_t *src2)
 	if(src1->ndigit != src2->ndigit)
 	{
 		if(src1->ndigit > src2->ndigit)
-			return A;
+			return _A;
 		else if(src1->ndigit < src2->ndigit)
-			return B;
+			return _B;
 	}
 	else
 	{
 		for(ptr = src1->ndigit - 1; ptr >= 0; ptr--)
 		{
 			if(src1->digit[ptr] > src2->digit[ptr])
-				return A;
+				return _A;
 			else if(src1->digit[ptr] < src2->digit[ptr])
-				return B;
+				return _B;
 		}
 	}
 	/* They are completely equal */
-	return SAME;
+	return _SAME;
 }
 
 /* This one does care about sign */
@@ -142,10 +145,10 @@ int8_t bignum_cmp(bignum_t *src1, bignum_t *src2)
 			bignum_digitcmp(src1, src2);
 	else
 	{
-		if(src1->sign == POS)
-			return A;
-		else if(src2->sign == POS)
-			return B;
+		if(src1->sign == _POS)
+			return _A;
+		else if(src2->sign == _POS)
+			return _B;
 	}
 	return 0;
 }
@@ -154,6 +157,7 @@ int8_t bignum_cmp(bignum_t *src1, bignum_t *src2)
 void bignum_setzero(bignum_t *bignum)
 {
 	unsigned int ptr = bignum->ndigit;
+	bignum->sign = _POS;
 	while((ptr--) > 0)
 		bignum->digit[ptr] = 0;
 	bignum->ndigit=0;
@@ -219,6 +223,20 @@ void bignum_rawsub(bignum_t *big, bignum_t *small, bignum_t *dst)
 	}
 }
 
+void bignum_rawdec(bignum_t *dst, bignum_t *dec)
+{
+	unsigned int ptr=0;
+
+	while(ptr < dec->ndigit)
+	{
+		dst->digit[ptr] -= dec->digit[ptr];
+		BORROW(dst, ptr);
+		ptr++;
+	}
+
+	dst->ndigit = bignum_len(dst);
+}
+
 void bignum_add(bignum_t *a, bignum_t *b, bignum_t *dst)
 {
 	/* Size checking */
@@ -233,24 +251,24 @@ void bignum_add(bignum_t *a, bignum_t *b, bignum_t *dst)
 	else
 	{
 			int8_t cmp = bignum_digitcmp(a, b);
-			if(a->sign == POS && cmp == A)		/* A > B, (A) + (B) */
+			if(a->sign == _POS && cmp == _A)		/* A > B, (A) + (B) */
 			{
-				dst->sign = POS;
+				dst->sign = _POS;
 				bignum_rawsub(a, b, dst);
 			}
-			else if(a->sign == NEG && cmp == B)		/* B > A, (B) + (-A) */
+			else if(a->sign == _NEG && cmp == _B)		/* B > A, (B) + (-A) */
 			{
-				dst->sign = POS;
+				dst->sign = _POS;
 				bignum_rawsub(b, a, dst);
 			}
-			else if(a->sign == NEG && cmp == A)		/* A > B, (-A) + (B) */
+			else if(a->sign == _NEG && cmp == _A)		/* A > B, (-A) + (B) */
 			{
-				dst->sign = NEG;
+				dst->sign = _NEG;
 				bignum_rawsub(a, b, dst);
 			}
-			else if(a->sign == POS && cmp == B)		/* B > A, (A) + (-B) */
+			else if(a->sign == _POS && cmp == _B)		/* B > A, (A) + (-B) */
 			{
-				dst->sign = NEG;
+				dst->sign = _NEG;
 				bignum_rawsub(b, a, dst);
 			}
 	}
@@ -269,37 +287,37 @@ void bignum_sub(bignum_t *a, bignum_t *b, bignum_t *dst)
 
 	if(a->sign == b->sign)
 	{
-		if(cmp == A)				/* A > B, (+-A) - (+-B) */
+		if(cmp == _A)				/* A > B, (+-A) - (+-B) */
 		{
 			bignum_rawsub(a, b, dst);
-			dst->sign = POS;
+			dst->sign = _POS;
 		}
-		else if(cmp == B)			/* B > A, (+-A) - (+-B) */
+		else if(cmp == _B)			/* B > A, (+-A) - (+-B) */
 		{
 			bignum_rawsub(b, a, dst);
-			dst->sign = NEG;
+			dst->sign = _NEG;
 		}
 	}
 	else
 	{
-		if(a->sign == POS && cmp == A)			/* A > B, (A) - (-B) */
+		if(a->sign == _POS && cmp == _A)			/* A > B, (A) - (-B) */
 		{
-			dst->sign = POS;
+			dst->sign = _POS;
 			bignum_rawadd(a, b, dst);
 		}
-		else if(a->sign == POS && cmp == B)			/* A < B, (A) - (-B) */
+		else if(a->sign == _POS && cmp == _B)			/* A < B, (A) - (-B) */
 		{
-			dst->sign = NEG;
+			dst->sign = _NEG;
 			bignum_rawsub(b, a, dst);
 		}
-		else if(a->sign == NEG && cmp == A)			/* A > B, (-A) - (B) */
+		else if(a->sign == _NEG && cmp == _A)			/* A > B, (-A) - (B) */
 		{
-			dst->sign = NEG;
+			dst->sign = _NEG;
 			bignum_rawadd(a, b, dst);
 		}
-		else if(a->sign == NEG && cmp == B)			/* A < B, (-A) + (B) */
+		else if(a->sign == _NEG && cmp == _B)			/* A < B, (-A) + (B) */
 		{
-			dst->sign = NEG;
+			dst->sign = _NEG;
 			bignum_rawadd(b, a, dst);
 		}
 	}
@@ -331,8 +349,8 @@ void bignum_mul(bignum_t *a, bignum_t *b, bignum_t *dst)
 	if((a->ndigit + a->ndigit) > dst->size)
 		panic(P_SIZE);
 
-	dst->sign = a->sign ^ b->sign;
 	bignum_rawmul(a, b, dst);
+	dst->sign = a->sign ^ b->sign;
 	return;
 }
 
@@ -378,11 +396,96 @@ void bignum_rshift(bignum_t *bignum, unsigned int ndigit)
 	return;
 }
 
-/* Division */
-void bignum_rawdiv(bignum_t *src, bignum_t *div, bignum_t *q, bignum_t *r)
+unsigned long long int intpow(unsigned long long int x, unsigned long long int y)
 {
-	bignum_copy(src, r);
-	/* Stub */
+	unsigned long long int count=y - 1, temp=1;
+
+	while(count > 0)
+	{
+		temp *= x;
+		count++;
+	}
+
+	return temp;
+}
+
+/* Division */
+void bignum_rawdiv(bignum_t *src, bignum_t *div, bignum_t *dst)
+{
+	unsigned int shift=0;
+
+	bignum_setzero(dst);
+	bignum_t *temp = bignum_init(_LENGTH);
+	bignum_t *subtract = bignum_init(_LENGTH);
+	bignum_copy(src, temp);
+	bignum_copy(div, subtract);
+
+	while(bignum_digitcmp(temp, subtract) != _B)
+	{
+		bignum_lshift(subtract, 1);
+		shift++;
+	}
+
+	while(shift > 0)
+	{
+		bignum_rshift(subtract, 1);
+		shift--;
+		while(bignum_digitcmp(temp, subtract) != _B)
+		{
+			bignum_rawdec(temp, subtract);
+			dst->digit[shift]++;
+		}
+	}
+
+	dst->ndigit = bignum_len(dst);
+	bignum_destroy(&temp);
+	bignum_destroy(&subtract);
+}
+
+void bignum_rawmod(bignum_t *src, bignum_t *div, bignum_t *dst)
+{
+	unsigned int shift=0;
+
+	bignum_t *subtract = bignum_init(_LENGTH);
+	bignum_copy(src, dst);
+	bignum_copy(div, subtract);
+
+	while(bignum_digitcmp(dst, subtract) != _B)
+	{
+		bignum_lshift(subtract, 1);
+		shift++;
+	}
+
+	while(shift > 0)
+	{
+		bignum_rshift(subtract, 1);
+		shift--;
+		while(bignum_digitcmp(dst, subtract) != _B)
+			bignum_rawdec(dst, subtract);
+	}
+
+	dst->ndigit = bignum_len(dst);
+	bignum_destroy(&subtract);
+}
+
+void bignum_div(bignum_t *a, bignum_t *b, bignum_t *dst)
+{
+	if(a->ndigit > dst->size)
+		panic(P_SIZE);
+
+	bignum_rawdiv(a, b, dst);
+	dst->sign = a->sign ^ b->sign;
+	return;
+}
+
+void bignum_mod(bignum_t *a, bignum_t *b, bignum_t *dst)
+{
+	if(b->ndigit > dst->size)
+		panic(P_SIZE);
+
+	bignum_rawmod(a, b, dst);
+	dst->sign = a->sign ^ b->sign;
+	return;
 }
 
 int chartoint(char c)
@@ -390,9 +493,9 @@ int chartoint(char c)
 	if(c >= '0' && c <= '9')
 		return c - '0';
 	else if(c == '-')
-		return NEG_CHAR;
+		return _NEG_CHAR;
 	else
-		return INVAILD_CHAR;
+		return _INVAILD_CHAR;
 }
 
 char inttochar(int8_t c)
@@ -409,17 +512,19 @@ void bignum_strtonum(char *str, bignum_t *dst)
 	size_t end=strlen(str) - 1;
 	unsigned int ptr=end;
 	size_t strptr=0;
+
+	bignum_setzero(dst);
 	while(strptr <= end)
 	{
 		value=chartoint(str[strptr++]);
-		if(value == NEG_CHAR)
+		if(value == _NEG_CHAR)
 		{
-			dst->sign = NEG;
+			dst->sign = _NEG;
 			ptr--;
 		}
-		else if(value == INVAILD_CHAR)
+		else if(value == _INVAILD_CHAR)
 		{
-			puts("?INVAILD_CHAR");
+			panic(P_INVAILD_CHAR);
 			return;
 		}
 		else
@@ -438,7 +543,7 @@ void bignum_prints(char *str, size_t size, bignum_t *bignum)
 	unsigned int numptr=0;
 	unsigned int strptr=len - 1;
 
-	if(bignum->sign == NEG)
+	if(bignum->sign == _NEG)
 	{
 		strptr++;
 		len++;	/* Need one more character to store '-' */
@@ -447,22 +552,22 @@ void bignum_prints(char *str, size_t size, bignum_t *bignum)
 	if(len > size)
 		return;		/* Not sufficient space */
 
-	str[strptr] = '\0';
+	str[len] = '\0'; /* Add a NUL after these digits */
 	while(numptr < end)
 		str[strptr--] = inttochar(bignum->digit[numptr++]);
 
 	if(bignum->ndigit == 0)	/* If there's no digits */
 	{
-		str[++strptr]='0';
-		str[++strptr] = 0x00;
+		str[0]='0';
+		str[1] = 0x00;
 	}
 	return;
 }
 
-void bignum_dump(bignum_t *bignum)
+void bignum_dump(bignum_t *bignum, char *name)
 {
 	unsigned int ptr = bignum->size;
-	fputs("=== DUMP ===\n", stderr);
+	fprintf(stderr, "=== DUMP OF \"%s\" ===\n", name);
 	fprintf(stderr, "SIZE=%u\n", bignum->size);
 	fprintf(stderr, "SIGN=%s\n", bignum->sign ? "NEG" : "POS");	/* NEG == -1, POS == 0 */
 	fprintf(stderr, "NDIGIT=%u\n", bignum->ndigit);
@@ -480,26 +585,26 @@ int main(void)
 {
 	int i=0;
 	char operator=0;
-	char stra[LENGTH], strb[LENGTH], strc[LENGTH];
+	char stra[_LENGTH], strb[_LENGTH], strc[_LENGTH];
 
 	/* Because of the way cache works, this thing's performance might be somewhat poor */
-	for(i=0; i < LENGTH; i++)
+	for(i=0; i < _LENGTH; i++)
 	{
 		stra[i] = 0;
 		strb[i] = 0;
 		strc[i] = 0;
 	}
 
-	bignum_t *a = bignum_init(LENGTH);
-	bignum_t *b = bignum_init(LENGTH);
-	bignum_t *c = bignum_init(LENGTH);
+	bignum_t *a = bignum_init(_LENGTH);
+	bignum_t *b = bignum_init(_LENGTH);
+	bignum_t *c = bignum_init(_LENGTH);
 
 	while(scanf("%s %c %s", stra, &operator, strb) > 0)
 	{
 		bignum_strtonum(stra, a);
 		bignum_strtonum(strb, b);
-		bignum_dump(a);
-		bignum_dump(b);
+		bignum_dump(a, "A");
+		bignum_dump(b, "B");
 		switch(operator)
 		{
 			case '+':
@@ -511,20 +616,17 @@ int main(void)
 			case '*':
 				bignum_mul(a, b, c);
 				break;
-			case '<':
-				bignum_copy(a, c);
-				bignum_lshift(c, 5);
-				break;
-			case '>':
-				bignum_copy(a, c);
-				bignum_rshift(c, 5);
-				break;
 			case '/':
+				bignum_div(a, b, c);
+				break;
+			case '%':
+				bignum_mod(a, b, c);
+				break;
 			default:
 				return 0;
 		}
-		bignum_dump(c);
-		bignum_prints(strc, LENGTH, c);
+		bignum_dump(c, "C");
+		bignum_prints(strc, _LENGTH, c);
 		puts(strc);
 	}
 	return 0;
