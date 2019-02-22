@@ -251,12 +251,12 @@ void bignum_add(bignum_t *a, bignum_t *b, bignum_t *dst)
 	else
 	{
 			int8_t cmp = bignum_digitcmp(a, b);
-			if(a->sign == _POS && cmp == _A)		/* A > B, (A) + (B) */
+			if(a->sign == _POS && cmp == _A)		/* A > B, (A) + (-B) */
 			{
 				dst->sign = _POS;
 				bignum_rawsub(a, b, dst);
 			}
-			else if(a->sign == _NEG && cmp == _B)		/* B > A, (B) + (-A) */
+			else if(a->sign == _NEG && cmp == _B)		/* B > A, (-A) + (B) */
 			{
 				dst->sign = _POS;
 				bignum_rawsub(b, a, dst);
@@ -307,15 +307,15 @@ void bignum_sub(bignum_t *a, bignum_t *b, bignum_t *dst)
 		}
 		else if(a->sign == _POS && cmp == _B)			/* A < B, (A) - (-B) */
 		{
-			dst->sign = _NEG;
-			bignum_rawsub(b, a, dst);
+			dst->sign = _POS;
+			bignum_rawadd(b, a, dst);
 		}
 		else if(a->sign == _NEG && cmp == _A)			/* A > B, (-A) - (B) */
 		{
 			dst->sign = _NEG;
 			bignum_rawadd(a, b, dst);
 		}
-		else if(a->sign == _NEG && cmp == _B)			/* A < B, (-A) + (B) */
+		else if(a->sign == _NEG && cmp == _B)			/* A < B, (-A) - (B) */
 		{
 			dst->sign = _NEG;
 			bignum_rawadd(b, a, dst);
