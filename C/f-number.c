@@ -13,11 +13,11 @@ int main(int argc, char **argv)
 
 	while(passed <= rounds)
 	{
-		passed++;
 		last=current;
 		current=next;
 		next=(last + current);
 		printf("%d\t%lld\n", passed, current);
+		passed++;
 	}
 }
 
