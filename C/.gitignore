@@ -12,3 +12,6 @@ ackermann
 lcm
 prime
 bignum
+gmpfib
+fastfib
+*.o
