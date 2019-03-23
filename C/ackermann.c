@@ -24,13 +24,15 @@ num_t ackermann(num_t m, num_t n)
 	return 0; /* Might be possible to reach here? */
 }
 
-void quit(int signal)
+void display(int signal)
 {
 	fprintf(stderr, "\rC=%llu\n", count);
 	fprintf(stderr, "T=%ld\n", clock() - start);
 	fputs("==========\n", stderr);
 	if(signal == SIGQUIT)
 		exit(0);
+	if(signal == SIGALRM)
+		alarm(1);
 }
 
 int main(int argc, char **argv)
@@ -45,12 +47,14 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	signal(SIGINT, quit);
-	signal(SIGQUIT, quit);
+	signal(SIGINT, display);
+	signal(SIGQUIT, display);
+	signal(SIGALRM, display);
 
 	arg_m = strtoull(argv[1], NULL, 10);
 	arg_n = strtoull(argv[2], NULL, 10);
 
+	alarm(1);
 	ret = ackermann(arg_m, arg_n);
 	printf("%ld usec, %llu times called, ACKERMANN(%llu, %llu) = %llu\n",
 			(end = clock()) - start,
