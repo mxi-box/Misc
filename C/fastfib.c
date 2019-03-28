@@ -32,13 +32,18 @@ void mul(mpz_t *a, mpz_t *b)
 
 void power(mpz_t *f, unsigned long long int n)
 {
-	if(n == 0 || n == 1)
+	if(n == 0)
 		return;
 
-	power(f, n >> 1);
-	mul(f, f);
-	if(n & 0x1)
-		mul(f, fib);
+	n -= 1;
+	while(n != 0)
+	{
+		if(n & 0x1)
+			mul(f, fib);
+		n >>= 1;
+		if(n != 0)
+			mul(fib, fib);
+	}
 }
 
 void fibonacci(mpz_t *f, unsigned long long int n)
