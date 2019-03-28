@@ -7,6 +7,8 @@ mpz_t ans[4];
 mpz_t fib[4];
 mpz_t tmp[4];
 
+int raw=0;
+
 unsigned long long int n=(1<<20);
 
 void mul(mpz_t *a, mpz_t *b)
@@ -54,7 +56,15 @@ int main(int argc, char **argv)
 {
 	int i=0;
 	if(argc >= 2)
-		n = strtoull(argv[1], NULL, 10);
+	{
+		if(argv[1][0] == '-')
+		{
+			n = strtoull(argv[1] + 1, NULL, 10);
+			raw = 0xFF;
+		}
+		else
+			n = strtoull(argv[1], NULL, 10);
+	}
 
 	for(i=0; i < 4; i++)
 	{
@@ -75,5 +85,8 @@ int main(int argc, char **argv)
 
 	fibonacci(ans, n);
 
-	gmp_printf("%llu,\t%Zd\n", n, ans[0]);
+	if(raw)
+		mpz_out_raw(stdout, ans[0]);
+	else
+		gmp_printf("%llu,\t%Zd\n", n, ans[0]);
 }
