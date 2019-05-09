@@ -9,6 +9,6 @@ int main(void)
 	srandom(time(NULL));
 	for(i=0; i < (1ULL<<33); i++) num+=random();
 
-	printf("RAND=%llx\n", num);
+	printf("RAND=%#016llx\n", num);
 	return 0;
 }
