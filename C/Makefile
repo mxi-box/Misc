@@ -1,6 +1,6 @@
 CC	= cc
 CFLAGS	= -O2 -g -Wall -Wextra -pipe -fPIE -fPIC
-EXE	= epoch f-number hex_epoch neodate triangle diamond ackermann lcm prime gmpfib fastfib
+EXE	= epoch f-number hex_epoch neodate triangle diamond ackermann lcm prime gmpfib fastfib random
 
 .PHONY: all
 
