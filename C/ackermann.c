@@ -31,8 +31,6 @@ void display(int signal)
 	fputs("==========\n", stderr);
 	if(signal == SIGQUIT)
 		exit(0);
-	if(signal == SIGALRM)
-		alarm(1);
 }
 
 int main(int argc, char **argv)
@@ -49,12 +47,10 @@ int main(int argc, char **argv)
 
 	signal(SIGINT, display);
 	signal(SIGQUIT, display);
-	signal(SIGALRM, display);
 
 	arg_m = strtoull(argv[1], NULL, 10);
 	arg_n = strtoull(argv[2], NULL, 10);
 
-	alarm(1);
 	ret = ackermann(arg_m, arg_n);
 	printf("%ld usec, %llu times called, ACKERMANN(%llu, %llu) = %llu\n",
 			(end = clock()) - start,
