@@ -70,17 +70,15 @@ int main(int argc, char **argv)
 			{
 				case 0:
 					mpz_add(num[2], num[0], num[1]);
-					gmp_printf("%llu,\t%Zd\n", i, num[1]);
 					break;
 				case 1:
 					mpz_add(num[0], num[1], num[2]);
-					gmp_printf("%llu,\t%Zd\n", i, num[2]);
 					break;
 				case 2:
 					mpz_add(num[1], num[2], num[0]);
-					gmp_printf("%llu,\t%Zd\n", i, num[0]);
 					break;
 			}
+					gmp_printf("%llu,\t%Zd\n", i, num[(i+1)%3]);
 			i++;
 		}
 	}
