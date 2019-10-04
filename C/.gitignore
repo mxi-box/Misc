@@ -1,3 +1,4 @@
+*.o
 epoch
 f-number
 hex_epoch
@@ -11,4 +12,4 @@ bignum
 gmpfib
 fastfib
 random
-*.o
+as
