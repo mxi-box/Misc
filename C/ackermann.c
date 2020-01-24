@@ -52,9 +52,9 @@ int main(int argc, char **argv)
 	arg_n = strtoull(argv[2], NULL, 10);
 
 	ret = ackermann(arg_m, arg_n);
-	printf("%ld usec, %llu times called, ACKERMANN(%llu, %llu) = %llu\n",
+	printf("Total %ld usec, %llu time(s) called, ACKERMANN(%llu, %llu) = %llu\n",
 			(end = clock()) - start,
 			count, arg_m, arg_n, ret);
-	printf("%lld c/usec\n", count / (end - start));
+	printf("%lf c/usec\n", (double)count / (double)(end - start));
 	return 0;
 }
