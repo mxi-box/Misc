@@ -1,4 +1,5 @@
 *.o
+a.out
 epoch
 f-number
 hex_epoch
@@ -13,3 +14,4 @@ gmpfib
 fastfib
 random
 as
+bswap
