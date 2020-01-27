@@ -37,7 +37,6 @@ int main(int argc, char **argv)
 {
 	num_t arg_m, arg_n;
 	num_t ret=0;
-	start = clock();
 
 	if(argc < 3)
 	{
@@ -51,10 +50,12 @@ int main(int argc, char **argv)
 	arg_m = strtoull(argv[1], NULL, 10);
 	arg_n = strtoull(argv[2], NULL, 10);
 
+	start = clock();
 	ret = ackermann(arg_m, arg_n);
-	printf("Total %ld usec, %llu time(s) called, ACKERMANN(%llu, %llu) = %llu\n",
-			(end = clock()) - start,
+	end = clock();
+	printf("Total %0.6lf sec, %llu time(s) called, ACKERMANN(%llu, %llu) = %llu\n",
+			(double)(end - start) / 1000000L,
 			count, arg_m, arg_n, ret);
-	printf("%lf c/usec\n", (double)count / (double)(end - start));
+	printf("%0.2lf c/usec\n", (double)count / (double)(end - start));
 	return 0;
 }

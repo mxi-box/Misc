@@ -5,7 +5,6 @@
 
 char *line;
 size_t len=0;
-ssize_t nread=0;
 uint8_t *revout;
 
 uint8_t hex2byte(char *str)
@@ -17,29 +16,33 @@ uint8_t hex2byte(char *str)
 	return ret;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
 	int index=0;
 	int bytes=0;
-	while((nread = (getline(&line, &len, stdin) - 1)) > 0)
-	{
-		if(nread % 2)
-			exit(1);
-		bytes = nread / 2;
-		revout = malloc((size_t)bytes);
 
-		for(index = 0; index < bytes; index++)
-		{
-			revout[index] = hex2byte(line + index * 2);
-		}
-		index--;
-		for(; index >= 0; --index)
-		{
-			if(index == 0)
-				printf("%02hhx\n", revout[index]);
-			else
-				printf("%02hhx", revout[index]);
-		}
+	if(argc < 2)
+		exit(1);
+
+	line = argv[1];
+	len = strlen(argv[1]);
+
+	if(len % 2)
+		exit(1);
+	bytes = len / 2;
+	revout = malloc((size_t)bytes);
+
+	for(index = 0; index < bytes; index++)
+	{
+		revout[index] = hex2byte(line + index * 2);
+	}
+	index--;
+	for(; index >= 0; --index)
+	{
+		if(index == 0)
+			printf("%02hhx\n", revout[index]);
+		else
+			printf("%02hhx", revout[index]);
 	}
 	return 0;
 }
