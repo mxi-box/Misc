@@ -12,5 +12,5 @@ int main(int argc, char **argv)
 
 	sscanf(argv[1], "%hhu.%hhu.%hhu.%hhu,%hhu",
 		&addr8[3], &addr8[2], &addr8[1], &addr8[0], &masklen);
-	printf("%hhu.%hhu.%hhu.%hhu\n", addr8[3], addr8[2], addr8[1], addr8[0] + atoi(argv[2]));
+	printf("%hhu.%hhu\n", addr8[0] + atoi(argv[2]), addr8[1]);
 }
