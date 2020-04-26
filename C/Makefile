@@ -1,6 +1,6 @@
 CC	= cc
 CFLAGS	= -O2 -g -Wall -Wextra -pipe -fPIE -fPIC -std=c99 -pedantic
-EXE	= epoch f-number hex_epoch neodate triangle diamond ackermann lcm prime gmpfib fastfib random as bswap pi
+EXE	= epoch f-number hex_epoch neodate triangle diamond ackermann lcm prime gmpfib fastfib random as bswap pi ip
 LIBGMP	= -lgmp	-I/usr/local/include -L/usr/local/lib
 .PHONY: all
 
