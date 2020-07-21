@@ -1,3 +1,7 @@
+/*=================================================================*\
+|| approx.c: approximate fraction from given floating point number ||
+\*=================================================================*/
+
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -76,17 +80,17 @@ int main(int argc, char **argv)
 	{
 		get_mid(mid, &fmid, fa, fb);
 
+		gmp_printf("(%llu/%llu)\tmin: %llu/%llu, max: %llu/%llu, approx -> %llu/%llu (%F.64f)\n", i, iter,
+				fa.x, fa.y,
+				fb.x, fb.y,
+				fmid.x, fmid.y, mid);
+
 		if((cmp = mpf_cmp(mid, orig)) > 0)
 			fb = fmid;
 		else if(cmp < 0)
 			fa = fmid;
 		else
 			break;
-
-		gmp_printf("(%llu/%llu)\tmin: %llu/%llu, max: %llu/%llu, approx -> %llu/%llu (%F.64f)\n", i, iter,
-				fa.x, fa.y,
-				fb.x, fb.y,
-				fmid.x, fmid.y, mid);
 	}
 
 	return 0;
