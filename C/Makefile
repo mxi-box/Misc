@@ -1,6 +1,6 @@
 CC	= cc
 CFLAGS	= -O2 -g -Wall -Wextra -pipe -fPIE -fPIC -std=c99 -pedantic
-EXE	= epoch f-number hex_epoch neodate triangle diamond ackermann lcm prime gmpfib fastfib random as bswap pi ip approx
+EXE	= epoch f-number hex_epoch neodate triangle diamond ackermann lcm prime gmpfib fastfib random as bswap pi approx
 LIBGMP	= -lgmp	-I/usr/local/include -L/usr/local/lib
 .PHONY: all
 
@@ -17,6 +17,9 @@ as: as.o
 
 approx: approx.o
 	$(CC) $(CFLAGS) -o approx approx.o $(LIBGMP)
+
+pi: pi.o
+	$(CC) $(CFLAGS) -o pi pi.o -lm
 
 countline:
 	wc -l *.c
