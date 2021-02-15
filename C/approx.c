@@ -9,7 +9,8 @@
 #include <gmp.h>
 
 mpf_t	mid,	/* A number between them */
-	orig;	/* Original value */
+	orig,	/* Original value */
+	diff;	/* Difference */
 
 typedef struct fake_fraction
 {
@@ -22,7 +23,7 @@ void panic(char *msg, int val)
 	exit(val);
 }
 
-/* Used to calculate a and b */
+/* Upper bound / Lower bound and mediant */
 frac_t fa =
 {
 	.x = 0,
@@ -57,7 +58,7 @@ void get_mid(mpf_t rop, frac_t *fmid, frac_t fa, frac_t fb)
 
 int main(int argc, char **argv)
 {
-	uint64_t i, iter; /* Iterations to run */
+	unsigned long long int i, iter; /* Iterations to run */
 	int cmp=0;
 
 	if(argc != 3)
@@ -69,6 +70,7 @@ int main(int argc, char **argv)
 	printf("Default Precison: %lu\n", mpf_get_default_prec());
 
 	mpf_init_set_d(mid, 0.5);
+	mpf_init(diff);
 
 	if(mpf_init_set_str(orig, argv[1], 10) == -1)	/* Should be a valid float */
 		panic("?INVALID", 1);
@@ -76,19 +78,28 @@ int main(int argc, char **argv)
 	if(mpf_cmp_ui(orig, 1) > 0)	/* Should be less than 1 */
 		panic("?ONE", 1);
 
+	printf("Input: %s\nIterations: %llu\n", argv[1], iter);
+
+	for(i=0; i < 80; i++)
+		fputc('=', stdout);
+	fputc('\n', stdout);
+
 	for(i=1; i <= iter; i++)
 	{
 		get_mid(mid, &fmid, fa, fb);
+		mpf_sub(diff, orig, mid);
 
-		gmp_printf("(%llu/%llu)\tmin: %llu/%llu, max: %llu/%llu, approx -> %llu/%llu (%F.64f)\n", i, iter,
+		gmp_printf("(%llu/%llu)\t[min: %llu/%llu, max: %llu/%llu],\tapprox => %llu/%llu (%F.16f) : diff => %F.16f\n", i, iter,
 				fa.x, fa.y,
 				fb.x, fb.y,
-				fmid.x, fmid.y, mid);
+				fmid.x, fmid.y, mid, diff);
 
 		if((cmp = mpf_cmp(mid, orig)) > 0)
 			fb = fmid;
 		else if(cmp < 0)
 			fa = fmid;
+		else if(mpf_cmp_d(diff, 0.0))
+			break;
 		else
 			break;
 	}
