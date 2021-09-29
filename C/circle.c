@@ -9,6 +9,15 @@ double distance(double a, double b)
 	return sqrt(a*a + b*b);
 }
 
+char const dispchar[] = "%XH=- ";
+
+#ifndef NO_DRAW
+#define DRAW(x)	\
+	putchar(dispchar[(x)])
+#else
+#define DRAW(x)
+#endif
+
 int main(int argc, char **argv)
 {
 	double x, y, d;
@@ -32,37 +41,25 @@ int main(int argc, char **argv)
 
 			if(d <= size)
 			{
-				putchar('%');
+				DRAW(0);
 				area += 0.5;
 			}
 			else if(d - size <= 0.0625)
-			{
-				putchar('X');
-				area += 0.125;
-			}
+				DRAW(1);
 			else if(d - size <= 0.125)
-			{
-				putchar('H');
-				area += 0.0625;
-			}
+				DRAW(2);
 			else if(d - size <= 0.25)
-			{
-				putchar('=');
-				area += 0.03125;
-			}
+				DRAW(3);
 			else if(d - size <= 0.50)
-			{
-				putchar('-');
-				area += 0.015625;
-			}
+				DRAW(4);
 			else
-				putchar(' ');
+				DRAW(5);
 		}
 
 		putchar('\n');
 	}
 
-	printf("\nPi = %lf\n", area / (size * size));
+	fprintf(stderr, "\nPi = %lf\n", area / (size * size));
 	exit(0);
 error:
 	exit(1);
