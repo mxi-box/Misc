@@ -11,7 +11,7 @@ double distance(double a, double b)
 
 int main(int argc, char **argv)
 {
-	double x, y;
+	double x, y, d;
 	int size;
 
 	if(argc > 2)
@@ -24,10 +24,14 @@ int main(int argc, char **argv)
 	{
 		for(x = -size; x <= size; x += 0.5)
 		{
-			if(distance(x, y) <= size)
+			d = distance(x, y);
+
+			if(d <= size)
 				putchar('X');
+			else if(d - size <= 0.25)
+				putchar('-');
 			else
-				putchar('_');
+				putchar(' ');
 		}
 
 		putchar('\n');
