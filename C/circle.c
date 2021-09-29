@@ -18,6 +18,9 @@ int main(int argc, char **argv)
 		goto error;
 
 	size = atoi(argv[1]);
+
+	if(size < 0)
+		goto error;
 	/* plot size: size * 2 + 1 */
 
 	for(y = size; y >= -size; y--)
