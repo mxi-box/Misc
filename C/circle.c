@@ -31,6 +31,8 @@ int main(int argc, char **argv)
 
 			if(d <= size)
 				putchar('X');
+			else if(d - size <= 0.125)
+				putchar('=');
 			else if(d - size <= 0.25)
 				putchar('-');
 			else
