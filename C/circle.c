@@ -13,6 +13,7 @@ int main(int argc, char **argv)
 {
 	double x, y, d;
 	int size;
+	double area = 0.0;
 
 	if(argc > 2)
 		goto error;
@@ -30,17 +31,38 @@ int main(int argc, char **argv)
 			d = distance(x, y);
 
 			if(d <= size)
+			{
+				putchar('%');
+				area += 0.5;
+			}
+			else if(d - size <= 0.0625)
+			{
 				putchar('X');
+				area += 0.125;
+			}
 			else if(d - size <= 0.125)
-				putchar('=');
+			{
+				putchar('H');
+				area += 0.0625;
+			}
 			else if(d - size <= 0.25)
+			{
+				putchar('=');
+				area += 0.03125;
+			}
+			else if(d - size <= 0.50)
+			{
 				putchar('-');
+				area += 0.015625;
+			}
 			else
 				putchar(' ');
 		}
 
 		putchar('\n');
 	}
+
+	printf("\nPi = %lf\n", area / (size * size));
 	exit(0);
 error:
 	exit(1);
