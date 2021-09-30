@@ -17,13 +17,17 @@ int main(int argc, char **argv)
 		sscanf(argv[1], "%d", &lines);
 	else
 		return 2;
+	lines += 1;
 
-	for(current=1; current <= (lines + 1); current++)
+	if(lines >= 0)
 	{
-		print_head(current, lines);
-		print_body(current);
+		for(current=1; current <= (lines + 1); current++)
+		{
+			print_head(current, lines);
+			print_body(current);
+		}
+		print_tail(lines);
 	}
-	print_tail(lines);
 	return 0;
 }
 
