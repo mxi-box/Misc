@@ -63,7 +63,7 @@ int main(int argc, char **argv)
 		fwrite(linebuf, hsize + 1, sizeof(char), stdout);
 	}
 
-	fprintf(stderr, "\nPi = %lf\n", (double)area / 2.0 / (size * size));
+	fprintf(stderr, "\nPi = %lf\n", (double)area / 2.0 / ((long)size * size));
 	exit(0);
 error:
 	exit(1);
