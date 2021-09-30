@@ -25,7 +25,6 @@ int main(int argc, char **argv)
 	char *linebuf;
 	long long unsigned int area = 0;
 	int xlast = 0; /* last position of x */
-	int *lastpos;
 	unsigned int areadelta = 0;
 
 	if(argc > 2)
@@ -42,11 +41,6 @@ int main(int argc, char **argv)
 	if(linebuf == NULL)
 		goto error;
 	linebuf[hsize] = '\n';
-
-	/* Only record the upper half + center line */
-	lastpos = calloc(size + 1, sizeof(int));
-	if(lastpos == NULL)
-		goto error;
 
 	for(y = size; y >= -size; y--)
 	{
