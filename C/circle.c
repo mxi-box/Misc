@@ -36,8 +36,8 @@ int main(int argc, char **argv)
 		goto error;
 	/* plot size: size * 2 + 1 */
 
-	hsize = size * 4 + 1; // Double horizontal resolution
-	linebuf = malloc(hsize + 1); // include space for NUL
+	hsize = size * 4 + 1; // Double horizontal resolution (0.5 per step)
+	linebuf = malloc(hsize + 1); // include space for LF
 	if(linebuf == NULL)
 		goto error;
 	linebuf[hsize] = '\n';
@@ -47,7 +47,7 @@ int main(int argc, char **argv)
 		memset(linebuf, ' ', hsize);
 
 		/* what an interesting algorithm */
-		for(x = xlast; x >= -size * 2; x += y >= 0 ? -1 : 1)
+		for(x = xlast; x >= -size * 2; x += y >= 0 ? -1 : 1) /* change direction after y reaches 0 */
 		{
 			d = distance(x, y);
 
