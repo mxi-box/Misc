@@ -64,6 +64,7 @@ int main(int argc, char **argv)
 	}
 
 	fprintf(stderr, "\nPi = %lf\n", (double)area / 2.0 / ((long)size * size));
+	free(linebuf);
 	exit(0);
 error:
 	exit(1);
