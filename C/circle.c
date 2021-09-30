@@ -10,7 +10,7 @@
 
 typedef long long int num_t;
 
-static inline double distance(int x, int y)
+static inline double distance(double x, double y)
 {
 	return sqrt(x*x/4.0 + y*y);
 }
@@ -21,7 +21,7 @@ int main(int argc, char **argv)
 	int x, y;
 	double d;
 	int size;
-	int hsize;
+	long int hsize;
 	char *linebuf;
 	long long unsigned int area = 0;
 	int xlast = 0; /* last position of x */
