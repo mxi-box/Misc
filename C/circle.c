@@ -27,7 +27,7 @@ int main(int argc, char **argv)
 	int xlast = 0; /* last position of x */
 	unsigned int areadelta = 0;
 
-	if(argc > 2)
+	if(argc != 2)
 		goto error;
 
 	size = atoi(argv[1]);
