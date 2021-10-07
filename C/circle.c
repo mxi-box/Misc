@@ -44,8 +44,6 @@ int main(int argc, char **argv)
 
 	for(y = size; y >= -size; y--)
 	{
-		memset(linebuf, ' ', hsize);
-
 		/* what an interesting algorithm */
 		for(x = xlast; x >= -size * 2; x += y >= 0 ? -1 : 1) /* change direction after y reaches 0 */
 		{
@@ -59,6 +57,9 @@ int main(int argc, char **argv)
 				break;
 		}
 		memset(linebuf + xlast + size * 2, '#', areadelta = abs(xlast) * 2 + 1);
+		memset(linebuf, ' ', xlast + size * 2); /* Fill left side empty space */
+		memset(linebuf + size * 2 + 1 + abs(xlast), ' ', size * 2 + xlast); /* Fill right side empty space */
+								/* NOTE: xlast is always negative */
 		area += areadelta;
 		fwrite(linebuf, hsize + 1, sizeof(char), stdout);
 	}
