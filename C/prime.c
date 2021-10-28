@@ -1,31 +1,37 @@
+/* Find primes the heuristic way */
+
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
-#include <string.h>
-
-#define TRUE	1
-#define FALSE	0
-
-int is_prime(int a)
-{
-	int i=0;
-	for(i=2; i< (a/2); i++)
-	{
-		if(a%i == 0)
-			return FALSE;
-	}
-	return TRUE;
-}
+#include <math.h>
 
 int main(void)
 {
-	int num=0, i=0;
-	fputs("?NUM=", stdout);
-	scanf("%d", &num);
+	typedef unsigned long long int num_t;
+	num_t i = 0, j = 1;
+	unsigned int p = 0;
+	double sqrj;
 
-	for(i=2; i<=num; i++)
+	num_t *primes;
+	num_t num = 65536;
+	primes = calloc(num, sizeof(num_t));
+
+	primes[0] = 2;
+	p = 1;
+
+next:
+	while(j++ < num)
 	{
-		if(is_prime(i))
-			printf("%d\n", i);
+		sqrj = sqrt(j);
+		for(i = 0; i < p && primes[i] < sqrj; i++)
+		{
+			if(j % primes[i] == 0)
+				goto next;
+		}
+		for(i = primes[i - 1]; i <= sqrj; i++)
+		{
+			if(j % i == 0)
+				goto next;
+		}
+		printf("%llu\n", primes[p++] = j);
 	}
 }
