@@ -5,7 +5,7 @@
 #include <math.h>
 
 #define INITIAL_SIZE	65536
-#define ALLOC_STEP	4096
+#define ALLOC_STEP	16384
 #define ALLOC_THRESHOLD	1024
 
 #define NULLCHK(x)	\
