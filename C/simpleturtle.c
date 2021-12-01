@@ -64,6 +64,7 @@ int main(void)
 
 				pos.x += dir.x * distance;
 				pos.y += dir.y * distance;
+				plot[OFFSET + pos.y][OFFSET + pos.x] = '@';	// mark current position
 				break;
 			case 'P':		// Print whole plot
 				for(i = ACTUAL_SIZE - 1; i >= 0; i--)
