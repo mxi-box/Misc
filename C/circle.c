@@ -44,10 +44,9 @@ int main(int argc, char **argv)
 		startpos = round(areadelta);
 
 		//memset(linebuf, ' ', hsize); /* Fill blank */
-		memset(linebuf + size * 2 - startpos, '#', startpos * 2);
-							/* Late rounding to get double horizontal resolution */
+		memset(linebuf + size * 2 - startpos, '#', startpos * 2 + 1); /* Fill body */
 		memset(linebuf, ' ', size * 2 - startpos); /* Fill left side empty space */
-		memset(linebuf + size * 2 + startpos, ' ', size * 2 - startpos); /* Fill right side empty space */
+		memset(linebuf + size * 2 + startpos + 1, ' ', size * 2 - startpos); /* Fill right side empty space */
 
 		fwrite(linebuf, hsize + 1, sizeof(char), stdout);
 		area += areadelta;
