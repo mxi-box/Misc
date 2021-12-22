@@ -10,22 +10,17 @@
 
 typedef long long int num_t;
 
-static inline double distance(double x, double y)
-{
-	return sqrt(x*x/4.0 + y*y);
-}
-
+#define func(x, size)	(sqrt((size)*(size) - ((long)x)*((long)x)))
 
 int main(int argc, char **argv)
 {
-	int x, y;
-	double d;
+	int x;
 	int size;
 	long int hsize;
 	char *linebuf;
-	long long unsigned int area = 0;
-	int xlast = 0; /* last position of x */
-	unsigned int areadelta = 0;
+	double area = 0;
+	double areadelta = 0;
+	int startpos;
 
 	if(argc != 2)
 		goto error;
@@ -37,34 +32,28 @@ int main(int argc, char **argv)
 	/* plot size: size * 2 + 1 */
 
 	hsize = size * 4 + 1; // Double horizontal resolution (0.5 per step)
-	linebuf = malloc(hsize + 1); // include space for LF
+	linebuf = calloc(hsize + 1, sizeof(char)); // include space for LF
 	if(linebuf == NULL)
 		goto error;
 	linebuf[hsize] = '\n';
 
-	for(y = size; y >= -size; y--)
+	for(x = -size; x <= size; x++)
 	{
-		/* what an interesting algorithm */
-		for(x = xlast; x >= -size * 2; x += y >= 0 ? -1 : 1) /* change direction after y reaches 0 */
-		{
-			d = distance(x, y);
+		/* intergrate! */
+		areadelta = func(x, (long)size) * 2;
+		startpos = round(areadelta);
 
-			/* Split because what value to record (before encounter / after encounter) is different */
-			if(y >= 0 && d > size)
-				break;
-			xlast = x;
-			if(y < 0 && d <= size)
-				break;
-		}
-		memset(linebuf + xlast + size * 2, '#', areadelta = abs(xlast) * 2 + 1);
-		memset(linebuf, ' ', xlast + size * 2); /* Fill left side empty space */
-		memset(linebuf + size * 2 + 1 + abs(xlast), ' ', size * 2 + xlast); /* Fill right side empty space */
-								/* NOTE: xlast is always negative */
-		area += areadelta;
+		//memset(linebuf, ' ', hsize); /* Fill blank */
+		memset(linebuf + size * 2 - startpos, '#', startpos * 2);
+							/* Late rounding to get double horizontal resolution */
+		memset(linebuf, ' ', size * 2 - startpos); /* Fill left side empty space */
+		memset(linebuf + size * 2 + startpos, ' ', size * 2 - startpos); /* Fill right side empty space */
+
 		fwrite(linebuf, hsize + 1, sizeof(char), stdout);
+		area += areadelta;
 	}
 
-	fprintf(stderr, "\nPi = %lf\n", (double)area / 2.0 / ((long)size * size));
+	fprintf(stderr, "\nPi = %lf\n", area / ((long)size * size));
 	free(linebuf);
 	exit(0);
 error:
