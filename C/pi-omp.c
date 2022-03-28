@@ -41,7 +41,7 @@ int main(int argc, char **argv)
 		mpfr_set_zero(area_slice, 1);
 
 		#pragma omp for
-		for(intmax_t i = -scale; i <= scale; i++)
+		for(intmax_t i = 0; i <= scale; i++)
 		{
 			/* intergrate! */
 			mpfr_set_si(x_pow2, i, MPFR_RNDN);
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
 	}
 
 	// Scale back to 1 (and multiply by 2)
-	mpfr_div_si(area, area, scale * scale / 2, MPFR_RNDN);
+	mpfr_div_si(area, area, scale * scale / 4, MPFR_RNDN);
 
 	mpfr_fprintf(stderr, "Pi = %.128Rf\n", area);
 	exit(0);
