@@ -10,12 +10,12 @@
 
 typedef long long int num_t;
 
-#define func(x, size)	(sqrt((size)*(size) - ((long)x)*((long)x)))
+#define func(x, size)	(sqrt((size)*(size) - (x)*(x)))
 
 int main(int argc, char **argv)
 {
-	int x;
-	int size;
+	long int x;
+	long int size;
 	long int hsize;
 	char *linebuf;
 	double area = 0;
@@ -40,7 +40,7 @@ int main(int argc, char **argv)
 	for(x = -size; x <= size; x++)
 	{
 		/* intergrate! */
-		areadelta = func(x, (long)size) * 2;
+		areadelta = func(x, size) * 2;
 		startpos = round(areadelta);
 
 		//memset(linebuf, ' ', hsize); /* Fill blank */
