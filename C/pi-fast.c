@@ -22,6 +22,4 @@ int main(void)
 
 	mpfr_fprintf(stderr, "Pi = %.128Rf\n", pi);
 	exit(0);
-error:
-	exit(1);
 }
