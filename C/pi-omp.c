@@ -31,12 +31,16 @@ void timespec_diff(struct timespec *start, struct timespec *end)
 void show_speed(union sigval sigval)
 {
 	struct timespec current;
+	char spin[] = {'-', '\\', '|', '/'};
+	static int spin_pos = 0;
+
 	clock_gettime(CLOCK_MONOTONIC, &current);
 	timespec_diff(&start, &current);
 
 	float msec = (float)current.tv_sec * 1000 + (float)current.tv_nsec / 1000 / 1000;
 	float speed = ctr / msec; // k
-	fprintf(stderr, "C =%20ld | Avg. Speed = %8.3fkOP/s\r", ctr, speed);
+	fprintf(stderr, "\rC =%20ld | Avg. Speed = %8.3fkOP/s %c", ctr, speed, spin[spin_pos++]);
+	spin_pos %= 4;
 }
 
 int main(int argc, char **argv)
@@ -69,7 +73,7 @@ int main(int argc, char **argv)
 	{
 		.it_value.tv_sec=1,
 		.it_interval.tv_sec=0,
-		.it_interval.tv_nsec=100000000L
+		.it_interval.tv_nsec=500000000L // 10Hz
 	};
 
 	timer_settime(timer, TIMER_ABSTIME, &period, NULL);
