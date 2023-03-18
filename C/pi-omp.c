@@ -73,7 +73,7 @@ int main(int argc, char **argv)
 	{
 		.it_value.tv_sec=1,
 		.it_interval.tv_sec=0,
-		.it_interval.tv_nsec=500000000L // 10Hz
+		.it_interval.tv_nsec=500000000L // 2Hz
 	};
 
 	timer_settime(timer, TIMER_ABSTIME, &period, NULL);
