@@ -105,6 +105,8 @@ int main(int argc, char **argv)
 			//mpfr_fprintf(stderr, "[%d] x = %ld, x^2 = %.18Rf, size^2 = %.18Rf, Da = %.18Rf, area_slice = %.18Rf\n", omp_get_thread_num(), i, x_pow2, size_pow2, area_slice_delta, area_slice);
 			mpfr_sqrt(area_slice_delta, area_slice_delta, MPFR_RNDN);
 			mpfr_add(area_slice, area_slice, area_slice_delta, MPFR_RNDN);
+
+			#pragma omp atomic
 			ctr++;
 		}
 
