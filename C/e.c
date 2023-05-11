@@ -21,10 +21,10 @@ typedef uint8_t byte;
 num_t divisor_block[WORD_SIZE][2];
 #define LAST_DIVISOR_BLOCK (WORD_SIZE - 1)
 
+// Calculating the accurate value of log2(n!) isn't that prohibitive on modern hardware
 double log2fractorial(num_t n)
 {
-	const double h = log2(2 * M_PI)/2;
-	return h + log2(10 * n) * (n + 0.5) - n / log(2);
+	return log2(2 * M_PI)/2 + log2(n) * (n + 0.5) - n / log(2);
 }
 
 void dump_frac(num_t *frac, num_t n)
@@ -159,7 +159,7 @@ int main(int argc, char **argv)
 		efrac[i] = 0x1234567890abcdef;
 	}
 	*/
-	size_t digits = to_digits_precision(efrac_size, sizeof(num_t));
+	size_t digits = to_digits_precision(efrac_size, WORD_SIZE);
 
 	// Print the result
 	printf("e = 2.");
