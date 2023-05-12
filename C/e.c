@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <signal.h>
+#include <time.h>
 #include <math.h>
 #include <float.h>
 #include <inttypes.h>
@@ -99,11 +101,40 @@ static inline void fraction_div_add1(word_t *frac, size_t n, word_t divisor)
 	}
 }
 
+volatile word_t current_divisor = 0;
+word_t terms = 5;
+
+void display(union sigval sigval)
+{
+	clock_t ticks = clock();
+	word_t current = terms - current_divisor;
+	static clock_t last_ticks = 0;
+	static word_t last = 0;
+	if(last_ticks == 0)
+	{
+		last_ticks = ticks;
+		return;
+	}
+	fprintf(stderr, ">%7.3f%% (%" PRIu32 "/%" PRIu32 ") @%lluT/s\n",
+		(float)current / terms * 100,
+		current,
+		terms,
+		(long long unsigned int)((current - last)*CLOCKS_PER_SEC/(ticks - last_ticks + 1))
+	);
+	last = current;
+	last_ticks = ticks;
+}
+
 int main(int argc, char **argv)
 {
-	word_t terms = 5;
 	if(argc == 2)
 		sscanf(argv[1], "%" SCNu32, &terms);
+
+	if(terms == 0)
+	{
+		fprintf(stderr, "Invalid term count\n");
+		return 1;
+	}
 
 	double precision = log2fractorial(terms);
 	fprintf(stderr, "estimated required precision: log2(%" PRIu32 "!) ~= %lfbits\n", terms, precision);
@@ -116,13 +147,30 @@ int main(int argc, char **argv)
 	size_t digits = to_digits_precision(efrac_size, WORD_SIZE);
 	fprintf(stderr, "will print %zu digits\n", digits);
 
-	word_t div_percent = (terms - 1)/100 + 1; // 1% of the terms, add 1 to avoid div by 0
+	// set-up timer for progress display
+	timer_t timer;
+	struct sigevent ev =
+	{
+		.sigev_notify = SIGEV_THREAD,
+		.sigev_notify_function = display,
+		.sigev_notify_attributes = NULL
+	};
+	timer_create(CLOCK_MONOTONIC, &ev, &timer);
+
+	struct itimerspec period =
+	{
+		.it_value.tv_sec=1,
+		.it_interval.tv_sec=1,
+		.it_interval.tv_nsec=000000000L
+	};
+
+	timer_settime(timer, TIMER_ABSTIME, &period, NULL);
+
 	// divisor = 1 is impossible as we don't really store the integer part
 	for(word_t divisor = terms; divisor > 1; divisor--)
 	{
 		fraction_div_add1(efrac, efrac_size, divisor);
-		if(divisor % (div_percent) == 0)
-			fprintf(stderr, ">%3" PRIu32 "%% done\r", (terms - divisor)/(div_percent));
+		current_divisor = divisor;
 	}
 	putc('\n', stderr);
 
