@@ -33,7 +33,6 @@ void dump_frac(word_t *frac, word_t n)
 word_t to_digits_precision(size_t n, size_t word_size)
 {
 	const size_t digits = floor(log(2)/log(10) * n * word_size);
-	printf("digits -> %zu\n", digits);
 	return digits;
 }
 
@@ -113,6 +112,10 @@ int main(int argc, char **argv)
 	word_t *efrac = calloc(efrac_size, sizeof(word_t));
 	fprintf(stderr, "allocated %zd %dbit words (%zu bit)\n", efrac_size, WORD_SIZE, efrac_size * WORD_SIZE);
 
+	// how many decimal digits do we have?
+	size_t digits = to_digits_precision(efrac_size, WORD_SIZE);
+	fprintf(stderr, "will print %zu digits\n", digits);
+
 	word_t div_percent = (terms - 1)/100 + 1; // 1% of the terms, add 1 to avoid div by 0
 	// divisor = 1 is impossible as we don't really store the integer part
 	for(word_t divisor = terms; divisor > 1; divisor--)
@@ -122,9 +125,6 @@ int main(int argc, char **argv)
 			fprintf(stderr, ">%3" PRIu32 "%% done\r", (terms - divisor)/(div_percent));
 	}
 	putc('\n', stderr);
-
-	// how many digits do we have?
-	size_t digits = to_digits_precision(efrac_size, WORD_SIZE);
 
 	// Print the result
 	printf("e = 2.");
