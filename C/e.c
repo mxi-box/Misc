@@ -12,6 +12,9 @@
 #include <inttypes.h>
 #include <assert.h>
 
+#define true	1
+#define false	0
+
 #define WORD_SIZE (32)
 
 typedef uint32_t word_t;
@@ -127,8 +130,16 @@ void display(union sigval sigval)
 
 int main(int argc, char **argv)
 {
+	int hex_mode = false;
 	if(argc == 2)
+	{
+		if(argv[1][0] == '-')
+		{
+			hex_mode = true;
+			argv[1]++;
+		}
 		sscanf(argv[1], "%" SCNu32, &terms);
+	}
 
 	if(terms == 0)
 	{
@@ -173,11 +184,23 @@ int main(int argc, char **argv)
 		fraction_div_add1(efrac, efrac_size, divisor);
 		current_divisor = divisor;
 	}
+	timer_delete(timer);
+
 	putc('\n', stderr);
 
 	// Print the result
-	printf("e = 2.");
-	print_fraction(efrac, efrac_size, digits);
-	putchar('\n');
+	if(hex_mode)
+	{
+		for(size_t n = 0; n < efrac_size; n++)
+			printf("%08" PRIx32 "_", efrac[n]);
+		putchar('\n');
+		return 0;
+	}
+	else
+	{
+		printf("e = 2.");
+		print_fraction(efrac, efrac_size, digits);
+		putchar('\n');
+	}
 	return 0;
 }
