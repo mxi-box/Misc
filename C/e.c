@@ -154,9 +154,12 @@ int main(int argc, char **argv)
 	word_t *efrac = calloc(efrac_size, sizeof(word_t));
 	fprintf(stderr, "allocated %zd %dbit words (%zu bit)\n", efrac_size, WORD_SIZE, efrac_size * WORD_SIZE);
 
-	// how many decimal digits do we have?
-	size_t digits = to_digits_precision(efrac_size, WORD_SIZE);
-	fprintf(stderr, "will print %zu digits\n", digits);
+	if(!hex_mode)
+	{
+		// how many decimal digits do we have?
+		size_t digits = to_digits_precision(efrac_size, WORD_SIZE);
+		fprintf(stderr, "will print %zu digits\n", digits);
+	}
 
 	// set-up timer for progress display
 	timer_t timer;
