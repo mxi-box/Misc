@@ -8,6 +8,7 @@
 #include <math.h>
 #include <float.h>
 #include <inttypes.h>
+#include <assert.h>
 
 #define WORD_SIZE (64)
 
@@ -17,9 +18,6 @@ typedef uint64_t num_t;
 #endif
 typedef __uint128_t num128_t; // necessary
 typedef uint8_t byte;
-
-num_t divisor_block[WORD_SIZE][2];
-#define LAST_DIVISOR_BLOCK (WORD_SIZE - 1)
 
 // Calculating the accurate value of log2(n!) isn't that prohibitive on modern hardware
 double log2fractorial(num_t n)
@@ -46,6 +44,7 @@ num_t to_digits_precision(size_t n, size_t word_size)
 static inline num_t intpow10(num_t n)
 {
 	num_t r = 1;
+	assert(n <= 19);
 	for(num_t i = 0; i < n; i++)
 		r *= 10;
 	return r;
@@ -90,28 +89,19 @@ void print_fraction(num_t *frac, size_t n, size_t digits)
  * https://archive.org/details/byte-magazine-1981-06/page/n393/mode/1up
  */
 
-// TODO: remove requirement for 128-bit integers here as it's not "that" necessary in the strict sense
-// Or maybe not, depending on which implementation is faster
-void fraction_div_add1(num_t *frac, size_t n, num_t divisor_block[][2])
+// Use 128bit division offered by compilers is actually faster
+void fraction_div_add1(num_t *frac, size_t n, num_t divisor)
 {
-	num_t remainder = 1;	// the implicit 1 at the beginning
+	num128_t tmp_partial_dividend = 1;
 	for(size_t i = 0; i < n; i++)
 	{
 		num_t tmp_quotient = 0;
-		num128_t tmp_partial_dividend = (num128_t)remainder << 64 | frac[i];
-		num128_t tmp_divosor;
+		tmp_partial_dividend <<= WORD_SIZE;
+		tmp_partial_dividend |= frac[i];
+		tmp_quotient = tmp_partial_dividend / divisor;
+		tmp_partial_dividend %= divisor;
 
-		for(int j = LAST_DIVISOR_BLOCK; j >= 0; j--)
-		{
-			tmp_divosor = (num128_t)divisor_block[j][0] << 64 | divisor_block[j][1];
-			if(tmp_partial_dividend >= tmp_divosor)
-			{
-				tmp_quotient |= 1ULL << j;
-				tmp_partial_dividend -= tmp_divosor;
-			}
-		}
 		frac[i] = tmp_quotient;
-		remainder = tmp_partial_dividend; // lower 64bits
 	}
 }
 
@@ -132,33 +122,11 @@ int main(int argc, char **argv)
 	// TODO: no need to split the divisor block into two parts if using 128-bit integers
 	for(num_t divisor = terms; divisor > 1; divisor--)
 	{
-		//printf("======\ndivisor -> %" PRIu64 " (%#" PRIx64 ")\n", divisor, divisor);
-
-		// Initialize the divisor block
-		for(int i = 0; i < WORD_SIZE; i++)
-		{
-			divisor_block[i][1] = divisor << i;
-			if(i > 0)
-				divisor_block[i][0] = divisor >> (64 - i);
-			else
-				divisor_block[i][0] = 0;
-
-			//printf("divisor_block[%d] -> %016" PRIx64 "_%016" PRIx64 "\n", i, divisor_block[i][0], divisor_block[i][1]);
-		}
-
-		fraction_div_add1(efrac, efrac_size, divisor_block);
+		fraction_div_add1(efrac, efrac_size, divisor);
 		//dump_frac(efrac, efrac_size);
 	}
 
 	// how many digits do we have?
-
-	/*
-	// Fraction conversion test
-	for(int i = 0; i < n; i++)
-	{
-		efrac[i] = 0x1234567890abcdef;
-	}
-	*/
 	size_t digits = to_digits_precision(efrac_size, WORD_SIZE);
 
 	// Print the result
