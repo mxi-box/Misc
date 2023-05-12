@@ -164,6 +164,7 @@ int main(int argc, char **argv)
 		.it_interval.tv_nsec=000000000L
 	};
 
+	current_divisor = terms;
 	timer_settime(timer, TIMER_ABSTIME, &period, NULL);
 
 	// divisor = 1 is impossible as we don't really store the integer part
