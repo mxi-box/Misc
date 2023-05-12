@@ -14,7 +14,6 @@
 
 typedef uint32_t word_t;
 typedef uint64_t dword_t; // necessary
-typedef uint8_t byte;
 
 // Calculating the accurate value of log2(n!) isn't that prohibitive on modern hardware
 double log2fractorial(word_t n)
@@ -114,14 +113,13 @@ int main(int argc, char **argv)
 	word_t *efrac = calloc(efrac_size, sizeof(word_t));
 	fprintf(stderr, "allocated %zd %dbit words (%zu bit)\n", efrac_size, WORD_SIZE, efrac_size * WORD_SIZE);
 
+	word_t div_percent = (terms - 1)/100 + 1; // 1% of the terms, add 1 to avoid div by 0
 	// divisor = 1 is impossible as we don't really store the integer part
-	// TODO: no need to split the divisor block into two parts if using 128-bit integers
-	word_t div_percent = (terms - 1)/100;
 	for(word_t divisor = terms; divisor > 1; divisor--)
 	{
 		fraction_div_add1(efrac, efrac_size, divisor);
-		if(divisor % (div_percent+1) == 0) // +1 to avoid division by zero
-			fprintf(stderr, ">%3" PRIu32 "%% done\r", (terms - divisor)/(div_percent+1));
+		if(divisor % (div_percent) == 0)
+			fprintf(stderr, ">%3" PRIu32 "%% done\r", (terms - divisor)/(div_percent));
 	}
 	putc('\n', stderr);
 
