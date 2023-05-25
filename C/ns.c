@@ -1,4 +1,4 @@
-/* Current UNIX epoch in 6-digit precision */
+/* Current UNIX epoch in 9-digit precision */
 
 #include <stdio.h>
 #include <time.h>
