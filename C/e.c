@@ -90,25 +90,6 @@ void print_fraction(word_t *frac, size_t n, size_t digits)
 	printf(fmtspec, (word_t)(tmp128b));
 }
 
-/* Algorithm by Steve Wozniak in 1980
- * https://archive.org/details/byte-magazine-1981-06/page/n393/mode/1up
- */
-
-static inline void fraction_div_add1(word_t *frac, size_t n, word_t divisor)
-{
-	dword_t tmp_partial_dividend = 1;
-	for(size_t i = 0; i < n; i++)
-	{
-		word_t tmp_quotient = 0;
-		tmp_partial_dividend <<= WORD_SIZE;
-		tmp_partial_dividend |= frac[i];
-		tmp_quotient = tmp_partial_dividend / divisor;
-		tmp_partial_dividend %= divisor;
-
-		frac[i] = tmp_quotient;
-	}
-}
-
 volatile word_t current_divisor = 0;
 word_t terms = 5;
 
@@ -131,6 +112,33 @@ void display(union sigval sigval)
 	);
 	last = current;
 	last_ticks = ticks;
+}
+
+/* Algorithm by Steve Wozniak in 1980
+ * https://archive.org/details/byte-magazine-1981-06/page/n393/mode/1up
+ */
+
+// TODO: try to parallelize this
+static inline void ecalc(word_t *efrac, size_t efrac_size, word_t terms)
+{
+	// divisor = 1 is impossible as we don't really store the integer part
+	for(word_t divisor = terms; divisor > 1; divisor--)
+	{
+		dword_t tmp_partial_dividend = 1;
+		for(size_t i = 0; i < efrac_size; i++)
+		{
+			word_t tmp_quotient = 0;
+			word_t tmp_frac = 0;
+
+			tmp_frac = efrac[i];
+			tmp_partial_dividend = (tmp_partial_dividend << WORD_SIZE) | tmp_frac;
+			tmp_quotient = tmp_partial_dividend / divisor;
+			tmp_partial_dividend %= divisor;
+
+			efrac[i] = tmp_quotient;
+		}
+		current_divisor = divisor;
+	}
 }
 
 int main(int argc, char **argv)
@@ -186,12 +194,9 @@ int main(int argc, char **argv)
 	current_divisor = terms;
 	timer_settime(timer, TIMER_ABSTIME, &period, NULL);
 
-	// divisor = 1 is impossible as we don't really store the integer part
-	for(word_t divisor = terms; divisor > 1; divisor--)
-	{
-		fraction_div_add1(efrac, efrac_size, divisor);
-		current_divisor = divisor;
-	}
+	// calculate e
+	ecalc(efrac, efrac_size, terms);
+
 	timer_delete(timer);
 
 	putc('\n', stderr);
