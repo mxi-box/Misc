@@ -63,31 +63,31 @@ void print_fraction(word_t *frac, size_t n, size_t digits)
 	// in groups of digits
 	for(size_t i = 0; i < digits/GROUP_SIZE; i++)
 	{
-		dword_t tmp128b = 0;
+		dword_t wide = 0;
 		for(ssize_t j = n - 1; j >= 0; j--)
 		{
-			tmp128b = (dword_t)frac[j] * pow10_19 + tmp128b;
-			frac[j] = tmp128b; // lower 64 bits
-			tmp128b >>= WORD_SIZE; // carry
+			wide = (dword_t)frac[j] * pow10_19 + wide;
+			frac[j] = wide; // lower 64 bits
+			wide >>= WORD_SIZE; // carry
 			//dump_frac(efrac, n);
 		}
-		printf("%019" PRIu64, (word_t)(tmp128b));
+		printf("%019" PRIu64, (word_t)(wide));
 	}
 
 	// the rest in one group
 	size_t rest = digits % GROUP_SIZE;
 	char fmtspec[32];
 
-	dword_t tmp128b = 0;
+	dword_t wide = 0;
 	for(ssize_t j = n - 1; j >= 0; j--)
 	{
-		tmp128b = (dword_t)frac[j] * intpow10(rest) + tmp128b;
-		frac[j] = tmp128b; // lower 64 bits
-		tmp128b >>= WORD_SIZE;
+		wide = (dword_t)frac[j] * intpow10(rest) + wide;
+		frac[j] = wide; // lower 64 bits
+		wide >>= WORD_SIZE;
 		//dump_frac(efrac, n);
 	}
 	sprintf(fmtspec, "%%0%zu" PRIu64, rest);
-	printf(fmtspec, (word_t)(tmp128b));
+	printf(fmtspec, (word_t)(wide));
 }
 
 volatile word_t current_divisor = 0;
