@@ -127,15 +127,9 @@ static inline void ecalc(word_t *efrac, size_t efrac_size, word_t terms)
 		dword_t tmp_partial_dividend = 1;
 		for(size_t i = 0; i < efrac_size; i++)
 		{
-			word_t tmp_quotient = 0;
-			word_t tmp_frac = 0;
-
-			tmp_frac = efrac[i];
-			tmp_partial_dividend = (tmp_partial_dividend << WORD_SIZE) | tmp_frac;
-			tmp_quotient = tmp_partial_dividend / divisor;
+			tmp_partial_dividend = (tmp_partial_dividend << WORD_SIZE) | efrac[i];
+			efrac[i] = tmp_partial_dividend / divisor;
 			tmp_partial_dividend %= divisor;
-
-			efrac[i] = tmp_quotient;
 		}
 		current_divisor = divisor;
 	}
