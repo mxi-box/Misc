@@ -6,10 +6,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <math.h>
 
 long double	mid,	/* A number between them */
 		orig,	/* Original value */
-		diff;	/* Difference */
+		diff,	/* Difference */
+		lastdiff; /* diff of last round */
 
 typedef struct fake_fraction
 {
@@ -75,24 +77,31 @@ int main(int argc, char **argv)
 		fputc('=', stdout);
 	fputc('\n', stdout);
 
+	lastdiff = 2;
 	for(i=1; i <= iter; i++)
 	{
+		int biggerdiff = 0;
 		get_mid(&mid, &fmid, fa, fb);
 		diff = orig - mid;
 
-		printf("(%llu/%llu)\t[min: %llu/%llu, max: %llu/%llu],\tapprox => %llu/%llu (%1.10Lf) : diff => %1.10Lf\n", i, iter,
+		if(fabsl(diff) > fabsl(lastdiff))
+			biggerdiff = 1;
+
+		printf("(%llu/%llu)\t[min: %llu/%llu, max: %llu/%llu],\tapprox => %llu/%llu (%1.10Lf) :\t%s diff => %1.10Lf\n", i, iter,
 				fa.x, fa.y,
 				fb.x, fb.y,
-				fmid.x, fmid.y, mid, diff);
+				fmid.x, fmid.y, mid,
+				biggerdiff ? ">>>" : "   ",
+				diff);
 
-		if(diff == 0.0)
+		if(orig == mid)
 			break;
 		else if(orig < mid)
 			fb = fmid;
 		else if(orig > mid)
 			fa = fmid;
-		else
-			break;
+
+		lastdiff = diff;
 	}
 
 	return 0;
