@@ -15,5 +15,6 @@ ns
 notfib
 e
 e-normal
+e-pipeline
 logfactorial
 *.txt

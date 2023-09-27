@@ -4,7 +4,7 @@ CFLAGS	= -O2 -g -Wall -Wextra -pipe -fPIE -fPIC -fopenmp -std=c17 -pedantic $(IN
 LDLIBS	= -lgmp -lmpfr -lm
 EXE	= epoch hex_epoch neodate ackermann \
 	  prime fastfib approx circle simpleturtle pi-omp pi-fast us ns notfib \
-	  e e-normal logfactorial
+	  e e-normal e-pipeline logfactorial
 .PHONY: all
 
 all: ${EXE}
