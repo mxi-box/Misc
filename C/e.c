@@ -96,6 +96,9 @@ word_t terms = 5;
 
 void display(union sigval sigval)
 {
+	// silence the compiler
+	(void)sigval;
+
 	static word_t last = 0;
 	fprintf(stderr, ">%7.3f%% (%" PRIu64 "/%" PRIu64 ") @%lluT/s\n",
 		(float)ctr * 100 / terms,
@@ -113,7 +116,8 @@ void display(union sigval sigval)
  * TODO: try to improve spatial locality (with a inner pipeline)
  */
 
- static inline word_t frac(word_t *efrac, size_t start, size_t end, word_t divisor, word_t remainder)
+// Long Fixed-Point Division with remainder
+ static inline word_t lfixdiv(word_t *efrac, size_t start, size_t end, word_t divisor, word_t remainder)
  {
 	if(divisor == 1 || divisor <= 1 || start == end)
 		return 0;
@@ -138,13 +142,13 @@ void display(union sigval sigval)
 		size_t end = (t + 1) * chunk_size;
 		if(t == omp_get_num_threads() - 1)
 			end = efrac_size;
-		remainders_out[t] = frac(efrac, start, end, divisors_pipeline[t], remainders_in[t]);
+		remainders_out[t] = lfixdiv(efrac, start, end, divisors_pipeline[t], remainders_in[t]);
 
 	}
 	#pragma omp barrier
 	#pragma omp single
 	{
-		for(size_t i = 1; i < omp_get_max_threads(); i++)
+		for(int i = 1; i < omp_get_max_threads(); i++)
 		{
 			remainders_in[i] = remainders_out[i - 1];
 		}
@@ -155,45 +159,58 @@ void display(union sigval sigval)
 static inline void ecalc(word_t *efrac, size_t efrac_size, word_t terms)
 {
 	int maxt = omp_get_max_threads();
-	fprintf(stderr, "calculating e with %d threads\n", maxt);
 	word_t divisors_pipeline[maxt];
 	word_t remainders_in[maxt];
 	word_t remainders_out[maxt];
 
 	// initialize the pipeline
-	for(size_t i = 0; i < maxt; i++)
+	for(int i = 0; i < maxt; i++)
 		divisors_pipeline[i] = 0;
 
 	remainders_in[0] = 1;
-	for(size_t i = 1; i < maxt; i++)
+	for(int i = 1; i < maxt; i++)
 		remainders_in[i] = 0;
 
-	// divisor = 1 is impossible as we don't really store the integer part
-	for(word_t divisor = terms; divisor > 1; divisor--)
+	if(efrac_size < (size_t)maxt)
 	{
-		for(size_t i = maxt - 1; i > 0; i--)
-			divisors_pipeline[i] = divisors_pipeline[i - 1];
-		divisors_pipeline[0] = divisor;
+		fprintf(stderr, "calculating e with 1 thread\n");
+		for(word_t divisor = terms; divisor > 1; divisor--)
+		{
+			lfixdiv(efrac, 0, efrac_size, divisor, 1);
+			ctr++;
+		}
 
-		// print out the array
-		/*
-		fprintf(stderr, "divisor =\t");
-		for(int i = 0; i < maxt; i++)
-			fprintf(stderr, "%" PRIu64 "\t", divisors_pipeline[i]);
-		fprintf(stderr, "\n");
-		*/
-		ecalc_parallel(efrac_size, efrac, remainders_in, remainders_out, divisors_pipeline);
-		ctr++;
 	}
-
-	fprintf(stderr, "Finalizing...\n");
-	// finish the pipeline
-	for(int i = 0; i < maxt; i++)
+	else
 	{
-		for(size_t i = maxt - 1; i > 0; i--)
-			divisors_pipeline[i] = divisors_pipeline[i - 1];
-		divisors_pipeline[0] = 0;
-		ecalc_parallel(efrac_size, efrac, remainders_in, remainders_out, divisors_pipeline);
+		fprintf(stderr, "calculating e with %d threads\n", maxt);
+		// divisor = 1 is impossible as we don't really store the integer part
+		for(word_t divisor = terms; divisor > 1; divisor--)
+		{
+			for(size_t i = maxt - 1; i > 0; i--)
+				divisors_pipeline[i] = divisors_pipeline[i - 1];
+			divisors_pipeline[0] = divisor;
+
+			// print out the array
+			/*
+			fprintf(stderr, "divisor =\t");
+			for(int i = 0; i < maxt; i++)
+				fprintf(stderr, "%" PRIu64 "\t", divisors_pipeline[i]);
+			fprintf(stderr, "\n");
+			*/
+			ecalc_parallel(efrac_size, efrac, remainders_in, remainders_out, divisors_pipeline);
+			ctr++;
+		}
+
+		fprintf(stderr, "Finalizing...\n");
+		// finish the pipeline
+		for(int i = 0; i < maxt; i++)
+		{
+			for(int i = maxt - 1; i > 0; i--)
+				divisors_pipeline[i] = divisors_pipeline[i - 1];
+			divisors_pipeline[0] = 0;
+			ecalc_parallel(efrac_size, efrac, remainders_in, remainders_out, divisors_pipeline);
+		}
 	}
 }
 
