@@ -108,6 +108,9 @@ void display(union sigval sigval)
 
 /* Algorithm by Steve Wozniak in 1980
  * https://archive.org/details/byte-magazine-1981-06/page/n393/mode/1up
+ * 
+ * Parallelized by me
+ * TODO: try to improve spatial locality (with a inner pipeline)
  */
 
  static inline word_t frac(word_t *efrac, size_t start, size_t end, word_t divisor, word_t remainder)
@@ -137,13 +140,13 @@ void display(union sigval sigval)
 			end = efrac_size;
 		remainders_out[t] = frac(efrac, start, end, divisors_pipeline[t], remainders_in[t]);
 
-		#pragma omp barrier
-		#pragma omp single
+	}
+	#pragma omp barrier
+	#pragma omp single
+	{
+		for(size_t i = 1; i < omp_get_max_threads(); i++)
 		{
-			for(size_t i = 1; i < omp_get_max_threads(); i++)
-			{
-				remainders_in[i] = remainders_out[i - 1];
-			}
+			remainders_in[i] = remainders_out[i - 1];
 		}
 	}
  }
@@ -183,6 +186,7 @@ static inline void ecalc(word_t *efrac, size_t efrac_size, word_t terms)
 		ctr++;
 	}
 
+	fprintf(stderr, "Finalizing...\n");
 	// finish the pipeline
 	for(int i = 0; i < maxt; i++)
 	{
