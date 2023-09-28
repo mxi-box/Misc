@@ -127,12 +127,12 @@ void display(union sigval sigval)
 
 	static word_t last = 0;
 	secs += 1;
-	fprintf(stderr, ">%7.3f%% (%" PRIu64 "/%" PRIu64 ") @%lluT/s (%lluT/s avg.)\n",
+	fprintf(stderr, ">%7.3f%% (%" PRIu64 "/%" PRIu64 ") @ %zu op/s (%zu op/s avg.)\n",
 		(float)ctr * 100 / terms,
 		ctr,
 		terms,
-		(long long unsigned int)(ctr - last),
-		(long long unsigned int)(ctr / secs)
+		ctr - last,
+		ctr / secs
 	);
 	last = ctr;
 }
@@ -144,7 +144,7 @@ void display(union sigval sigval)
  */
 
 // Long Fixed-Point Division with remainder
- static inline word_t lfixdiv(word_t *efrac, size_t current, word_t divisor, word_t remainder)
+ static inline word_t lfixdiv(word_t * restrict efrac, size_t current, word_t divisor, word_t remainder)
  {
 	if(divisor <= 1)
 		return 0;
@@ -156,7 +156,7 @@ void display(union sigval sigval)
 	return (word_t)tmp_partial_dividend;
  }
 
- static inline void efrac_calc(word_t *efrac, size_t start, size_t end, word_t divisor, word_t *remainders, word_t intensity)
+ static inline void efrac_calc(word_t * restrict efrac, size_t start, size_t end, word_t divisor, word_t * restrict remainders, word_t intensity)
  {
 	if(divisor <= 1)
 		return;
@@ -169,7 +169,7 @@ void display(union sigval sigval)
 	}
  }
 
- static inline void ecalc_parallel(size_t efrac_size, word_t *efrac, const word_t intensity, word_t remainders[][intensity], word_t *divisors_pipeline)
+ static inline void ecalc_parallel(size_t efrac_size, word_t * restrict efrac, const word_t intensity, word_t remainders[][intensity], word_t * restrict divisors_pipeline)
  {
 	for(size_t i = 0; i < intensity; i++)
 	{
@@ -188,11 +188,9 @@ void display(union sigval sigval)
 	}
 
 	#pragma omp barrier
+	for(int i = omp_get_max_threads() - 1; i > 0; i--)
 	{
-		for(int i = omp_get_max_threads() - 1; i > 0; i--)
-		{
-			memcpy(remainders[i], remainders[i - 1], sizeof(remainders[0]));
-		}
+		memcpy(remainders[i], remainders[i - 1], sizeof(remainders[0]));
 	}
  }
 
@@ -220,12 +218,15 @@ static inline void ecalc(word_t *efrac, size_t efrac_size, word_t terms, word_t 
 			efrac_calc(efrac, 0, efrac_size, divisor, remainders[0], intensity);
 			ctr++;
 		}
-		for(word_t divisor = terms % intensity; divisor > 1; divisor--)
+
+		word_t remaining_divisor = terms % intensity;
+
+		for(size_t i = 0; i < intensity; i++)
 		{
-			remainders[0][0] = 1;
-			efrac_calc(efrac, 0, efrac_size, divisor, remainders[0], 1);
-			ctr++;
+			remainders[0][i] = 1;
 		}
+		efrac_calc(efrac, 0, efrac_size, remaining_divisor, remainders[0], remaining_divisor);
+		ctr++;
 
 	}
 	else
@@ -251,15 +252,14 @@ static inline void ecalc(word_t *efrac, size_t efrac_size, word_t terms, word_t 
 			ecalc_parallel(efrac_size, efrac, intensity, remainders, divisors_pipeline);
 		}
 
-		for(word_t divisor = terms % intensity; divisor > 1; divisor--)
-		{
-			for(size_t i = maxt - 1; i > 0; i--)
-				divisors_pipeline[i] = divisors_pipeline[i - 1];
-			divisors_pipeline[0] = divisor;
+		word_t remaining_intensity = terms % intensity;
+		for(size_t i = maxt - 1; i > 0; i--)
+			divisors_pipeline[i] = divisors_pipeline[i - 1];
+		divisors_pipeline[0] = remaining_intensity;
 
-			ecalc_parallel(efrac_size, efrac, 1, remainders, divisors_pipeline);
-			ctr++;
-		}
+		ecalc_parallel(efrac_size, efrac, remaining_intensity, remainders, divisors_pipeline);
+		ctr += remaining_intensity;
+	
 		fprintf(stderr, "Finalizing...\n");
 		// finish the pipeline for remaining divisors
 		for(int i = 0; i < maxt; i++)
@@ -267,7 +267,7 @@ static inline void ecalc(word_t *efrac, size_t efrac_size, word_t terms, word_t 
 			for(int i = maxt - 1; i > 0; i--)
 				divisors_pipeline[i] = divisors_pipeline[i - 1];
 			divisors_pipeline[0] = 0;
-			ecalc_parallel(efrac_size, efrac, 1, remainders, divisors_pipeline);
+			ecalc_parallel(efrac_size, efrac, remaining_intensity, remainders, divisors_pipeline);
 		}
 
 	}
@@ -355,6 +355,7 @@ int main(int argc, char **argv)
 	}
 	else
 	{
+		fprintf(stderr, "Printing...\n");
 		printf("e = 2.");
 		print_fraction(efrac, efrac_size, digits, intensity);
 		putchar('\n');
