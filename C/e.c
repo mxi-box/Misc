@@ -60,36 +60,58 @@ static inline word_t intpow10(byte n)
 #define GROUP_SIZE (19)
 const word_t pow10_19 = 10000000000000000000ULL;
 
-void print_fraction(word_t *frac, size_t n, size_t digits)
+static inline word_t lfixmul(word_t *frac, word_t mul, word_t carry_in)
 {
+	dword_t wide = (dword_t)(*frac) * mul + carry_in;
+	(*frac) = wide; // lower 64 bits
+	wide >>= WORD_SIZE; // carry
+	return (word_t)wide;
+}
+
+void print_fraction(word_t *frac, size_t n, size_t digits, word_t intensity)
+{
+	word_t carrys[intensity];
 	// in groups of digits
-	for(size_t i = 0; i < digits/GROUP_SIZE; i++)
+	for(size_t i = 0; i < digits/(GROUP_SIZE * intensity); i++)
 	{
-		dword_t wide = 0;
+		for(size_t j = 0; j < intensity; j++)
+			carrys[j] = 0;
 		for(ssize_t j = n - 1; j >= 0; j--)
 		{
-			wide = (dword_t)frac[j] * pow10_19 + wide;
-			frac[j] = wide; // lower 64 bits
-			wide >>= WORD_SIZE; // carry
-			//dump_frac(efrac, n);
+			for(size_t k = 0; k < intensity; k++)
+				carrys[k] = lfixmul(&frac[j], pow10_19, carrys[k]);
 		}
-		printf("%019" PRIu64, (word_t)(wide));
+		for(size_t j = 0; j < intensity; j++)
+			printf("%019" PRIu64, carrys[j]);
 	}
 
 	// the rest in one group
-	size_t rest = digits % GROUP_SIZE;
+	size_t rest = digits % (GROUP_SIZE * intensity);
+	size_t rest_groups = rest / GROUP_SIZE;
+	
+	// 19-digit groups
+	for(size_t i = 0; i < rest_groups; i++)
+	{
+		word_t carry = 0;
+		for(ssize_t j = n - 1; j >= 0; j--)
+		{
+			carry = lfixmul(&frac[j], pow10_19, carry);
+		}
+		printf("%019" PRIu64, carry);
+	}
+
+	rest %= GROUP_SIZE;
 	char fmtspec[32];
 
-	dword_t wide = 0;
+	// less-than-19-digit group
+	word_t carry = 0;
+	word_t pow10 = intpow10(rest);
 	for(ssize_t j = n - 1; j >= 0; j--)
 	{
-		wide = (dword_t)frac[j] * intpow10(rest) + wide;
-		frac[j] = wide; // lower 64 bits
-		wide >>= WORD_SIZE;
-		//dump_frac(efrac, n);
+		carry = lfixmul(&frac[j], pow10, carry);
 	}
 	sprintf(fmtspec, "%%0%zu" PRIu64, rest);
-	printf(fmtspec, (word_t)(wide));
+	printf(fmtspec, carry);
 }
 
 volatile word_t ctr = 0;
@@ -134,7 +156,7 @@ void display(union sigval sigval)
 
  static inline void efrac_calc(word_t *efrac, size_t start, size_t end, word_t divisor, word_t *remainders, word_t intensity)
  {
-	if(divisor <= 1 || start == end)
+	if(divisor <= 1)
 		return;
 	for(size_t i = start; i < end; i++)
 	{
@@ -147,7 +169,6 @@ void display(union sigval sigval)
 
  static inline void ecalc_parallel(size_t efrac_size, word_t *efrac, const word_t intensity, word_t remainders[][intensity], word_t *divisors_pipeline)
  {
-	#pragma omp single
 	for(size_t i = 0; i < intensity; i++)
 	{
 		remainders[0][i] = 1;
@@ -165,7 +186,6 @@ void display(union sigval sigval)
 	}
 
 	#pragma omp barrier
-	#pragma omp single
 	{
 		for(int i = omp_get_max_threads() - 1; i > 0; i--)
 		{
@@ -216,13 +236,6 @@ static inline void ecalc(word_t *efrac, size_t efrac_size, word_t terms, word_t 
 				divisors_pipeline[i] = divisors_pipeline[i - 1];
 			divisors_pipeline[0] = divisor;
 
-			// print out the array
-			/*
-			fprintf(stderr, "divisor =\t");
-			for(int i = 0; i < maxt; i++)
-				fprintf(stderr, "%" PRIu64 "\t", divisors_pipeline[i]);
-			fprintf(stderr, "\n");
-			*/
 			ecalc_parallel(efrac_size, efrac, intensity, remainders, divisors_pipeline);
 			ctr += intensity;
 		}
@@ -242,18 +255,11 @@ static inline void ecalc(word_t *efrac, size_t efrac_size, word_t terms, word_t 
 				divisors_pipeline[i] = divisors_pipeline[i - 1];
 			divisors_pipeline[0] = divisor;
 
-			// print out the array
-			/*
-			fprintf(stderr, "divisor =\t");
-			for(int i = 0; i < maxt; i++)
-				fprintf(stderr, "%" PRIu64 "\t", divisors_pipeline[i]);
-			fprintf(stderr, "\n");
-			*/
 			ecalc_parallel(efrac_size, efrac, 1, remainders, divisors_pipeline);
 			ctr++;
 		}
 		fprintf(stderr, "Finalizing...\n");
-		// finish the pipeline
+		// finish the pipeline for remaining divisors
 		for(int i = 0; i < maxt; i++)
 		{
 			for(int i = maxt - 1; i > 0; i--)
@@ -348,7 +354,7 @@ int main(int argc, char **argv)
 	else
 	{
 		printf("e = 2.");
-		print_fraction(efrac, efrac_size, digits);
+		print_fraction(efrac, efrac_size, digits, intensity);
 		putchar('\n');
 	}
 
