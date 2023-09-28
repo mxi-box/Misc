@@ -1,6 +1,8 @@
 /* Calculate e with some bignum magic */
 /* NOTE: index 0 is the highest word */
 
+/* TODO: clean up the whole parallelism / intensity mess */
+
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
