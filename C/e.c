@@ -87,25 +87,25 @@ void print_fraction(word_t *frac, size_t n, size_t digits, word_t intensity)
 			printf("%019" PRIu64, carrys[j]);
 	}
 
-	// the rest in one group
 	size_t rest = digits % (GROUP_SIZE * intensity);
-	size_t rest_groups = rest / GROUP_SIZE;
-	
+	size_t rest_intensity = rest / GROUP_SIZE;
+
+	// use max possible intensity
 	// 19-digit groups
-	for(size_t i = 0; i < rest_groups; i++)
+	for(size_t j = 0; j < rest_intensity; j++)
+		carrys[j] = 0;
+	for(ssize_t j = n - 1; j >= 0; j--)
 	{
-		word_t carry = 0;
-		for(ssize_t j = n - 1; j >= 0; j--)
-		{
-			carry = lfixmul(&frac[j], pow10_19, carry);
-		}
-		printf("%019" PRIu64, carry);
+		for(size_t k = 0; k < rest_intensity; k++)
+			carrys[k] = lfixmul(&frac[j], pow10_19, carrys[k]);
 	}
+	for(size_t j = 0; j < rest_intensity; j++)
+		printf("%019" PRIu64, carrys[j]);
 
 	rest %= GROUP_SIZE;
 	char fmtspec[32];
 
-	// less-than-19-digit group
+	// the rest in one group
 	word_t carry = 0;
 	word_t pow10 = intpow10(rest);
 	for(ssize_t j = n - 1; j >= 0; j--)
