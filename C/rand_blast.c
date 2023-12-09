@@ -11,7 +11,9 @@
 #include <signal.h>
 #include <omp.h>
 
-static inline int match(unsigned int seed, uint8_t *bin, size_t len)
+#define MEGA (1024ULL * 1024)
+
+static inline int match(unsigned int seed, const uint8_t * restrict bin, const size_t len)
 {
 	for (size_t i = 0; i < len; i++)
 	{
@@ -39,7 +41,6 @@ void display(union sigval sigval)
 
 int main(int argc, char *argv[])
 {
-	int p = omp_get_max_threads();
 	uint8_t *bin = NULL;
 	FILE *fp;
 
@@ -55,8 +56,8 @@ int main(int argc, char *argv[])
 		unsigned int seed = atol(argv[2]);
 		unsigned int temp = seed;
 
-		bin = malloc(sizeof(char) * 1024 * 1024);
-		for(int i = 0; i < 1024 * 1024; i++)
+		bin = malloc(sizeof(char) * MEGA);
+		for(size_t i = 0; i < MEGA; i++)
 			bin[i] = rand_r(&temp) % 256;
 		fp = fopen(argv[1], "wb");
 		if(fp == NULL)
@@ -64,7 +65,7 @@ int main(int argc, char *argv[])
 			printf("Error: could not open file %s\n", argv[2]);
 			return 1;
 		}
-		fwrite(bin, sizeof(char), 1024 * 1024, fp);
+		fwrite(bin, sizeof(char), MEGA, fp);
 		printf("File %s generated with seed %u\n", argv[1], seed);
 		return 0;
 	}
@@ -84,13 +85,13 @@ int main(int argc, char *argv[])
 	}
 
 	// read file
-	bin = malloc(sizeof(char) * 1024 * 1024);
+	bin = malloc(sizeof(char) * MEGA);
 	if(bin == NULL)
 	{
 		printf("Error: could not allocate memory\n");
 		return 1;
 	}
-	size_t len = fread(bin, sizeof(char), 1024 * 1024, fp);
+	size_t len = fread(bin, sizeof(char), MEGA, fp);
 	if(len == 0)
 	{
 		printf("Error: could not read file\n");
@@ -117,12 +118,12 @@ int main(int argc, char *argv[])
 	ctr = 0;
 	timer_settime(timer, TIMER_ABSTIME, &period, NULL);
 
-	#pragma omp parallel for
-	for(unsigned long long int i = 0; i <= UINT_MAX; i++)
+	#pragma omp parallel for shared(bin, len)
+	for(size_t i = 0; i <= UINT_MAX; i++)
 	{
 		if(match((unsigned int)i, bin, len))
 		{
-			printf("Seed found: %llu\n", i);
+			printf("Seed found: %u\n", (unsigned int)i);
 			exit(0);
 		}
 		#pragma omp atomic
