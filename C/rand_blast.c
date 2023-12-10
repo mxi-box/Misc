@@ -1,4 +1,4 @@
-/* OpenMP program to generate or crack the random seed of a random file */
+/* OpenMP program to generate a random file or crack the random seed of a random file */
 
 #include <bits/types/timer_t.h>
 #include <stdio.h>
@@ -13,11 +13,27 @@
 
 #define MEGA (1024ULL * 1024)
 
+#ifndef NO_EXPECT
+#  define likely(x)	__builtin_expect(!!(x), 1)
+#  define unlikely(x)	__builtin_expect(!!(x), 0)
+#else
+#  define likely(x)	(x)
+#  define unlikely(x)	(x)
+#endif
+
+// Linear congruential generator used by glibc
+// substitute with target's RNG if known
+static inline unsigned int weak_rand_r(unsigned int *seed)
+{
+	*seed = *seed * 1103515245 + 12345;
+	return (unsigned int)(*seed / 65536) % 32768;
+}
+
 static inline int match(unsigned int seed, const uint8_t * restrict bin, const size_t len)
 {
 	for (size_t i = 0; i < len; i++)
 	{
-		if (rand_r(&seed) % 256 != bin[i])
+		if (likely(weak_rand_r(&seed) % 256 != bin[i]))
 			return 0;
 	}
 	return len;
@@ -58,7 +74,7 @@ int main(int argc, char *argv[])
 
 		bin = malloc(sizeof(char) * MEGA);
 		for(size_t i = 0; i < MEGA; i++)
-			bin[i] = rand_r(&temp) % 256;
+			bin[i] = weak_rand_r(&temp) % 256;
 		fp = fopen(argv[1], "wb");
 		if(fp == NULL)
 		{
@@ -121,17 +137,15 @@ int main(int argc, char *argv[])
 	#pragma omp parallel for shared(bin, len)
 	for(size_t i = 0; i <= UINT_MAX; i++)
 	{
-		if(match((unsigned int)i, bin, len))
+		if(unlikely(match((unsigned int)i, bin, len)))
 		{
 			printf("Seed found: %u\n", (unsigned int)i);
-			exit(0);
+			// exit(0);
 		}
 		#pragma omp atomic
 		ctr++;
 	}
-
-	timer_delete(timer);
-
 	printf("Seed not found\n");
+	timer_delete(timer);
 	return 0;
 }
