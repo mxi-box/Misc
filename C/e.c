@@ -44,6 +44,27 @@ void dump_frac(word_t *frac, size_t n)
 	putchar('\n');
 }
 
+volatile word_t ctr = 0;
+volatile word_t secs = 0;
+word_t terms = 5;
+
+void display(union sigval sigval)
+{
+	// silence the compiler
+	(void)sigval;
+
+	static word_t last = 0;
+	secs += 1;
+	fprintf(stderr, ">%7.3f%% (%" PRIu64 "/%" PRIu64 ") @ %zu op/s (%zu op/s avg.)\n",
+		(float)ctr * 100 / terms,
+		ctr,
+		terms,
+		ctr - last,
+		ctr / secs
+	);
+	last = ctr;
+}
+
 size_t to_digits_precision(size_t n, size_t word_size)
 {
 	const size_t digits = floor(log(2)/log(10) * n * word_size);
@@ -73,6 +94,7 @@ static inline word_t lfixmul(word_t *frac, word_t mul, word_t carry_in)
 void print_fraction(word_t *frac, size_t n, size_t digits, word_t intensity)
 {
 	word_t carrys[intensity];
+	terms = digits/GROUP_SIZE;
 	// in groups of digits
 	for(size_t i = 0; i < digits/(GROUP_SIZE * intensity); i++)
 	{
@@ -85,6 +107,8 @@ void print_fraction(word_t *frac, size_t n, size_t digits, word_t intensity)
 		}
 		for(size_t j = 0; j < intensity; j++)
 			printf("%019" PRIu64, carrys[j]);
+		
+		ctr += intensity;
 	}
 
 	size_t rest = digits % (GROUP_SIZE * intensity);
@@ -101,6 +125,7 @@ void print_fraction(word_t *frac, size_t n, size_t digits, word_t intensity)
 	}
 	for(size_t j = 0; j < rest_intensity; j++)
 		printf("%019" PRIu64, carrys[j]);
+	ctr += rest_intensity;
 
 	rest %= GROUP_SIZE;
 	char fmtspec[32];
@@ -116,27 +141,6 @@ void print_fraction(word_t *frac, size_t n, size_t digits, word_t intensity)
 	printf(fmtspec, carry);
 }
 
-volatile word_t ctr = 0;
-volatile word_t secs = 0;
-word_t terms = 5;
-
-void display(union sigval sigval)
-{
-	// silence the compiler
-	(void)sigval;
-
-	static word_t last = 0;
-	secs += 1;
-	fprintf(stderr, ">%7.3f%% (%" PRIu64 "/%" PRIu64 ") @ %zu op/s (%zu op/s avg.)\n",
-		(float)ctr * 100 / terms,
-		ctr,
-		terms,
-		ctr - last,
-		ctr / secs
-	);
-	last = ctr;
-}
-
 /* Algorithm by Steve Wozniak in 1980
  * https://archive.org/details/byte-magazine-1981-06/page/n393/mode/1up
  * 
@@ -149,8 +153,8 @@ void display(union sigval sigval)
 	if(divisor <= 1)
 		return 0;
 
-	dword_t tmp_partial_dividend = remainder;
-	tmp_partial_dividend = (tmp_partial_dividend << WORD_SIZE) | efrac[current];
+	dword_t tmp_partial_dividend = (dword_t)remainder << WORD_SIZE;
+	tmp_partial_dividend |= efrac[current];
 	efrac[current] = tmp_partial_dividend / divisor;
 	tmp_partial_dividend %= divisor;
 	return (word_t)tmp_partial_dividend;
@@ -216,7 +220,7 @@ static inline void ecalc(word_t *efrac, size_t efrac_size, word_t terms, word_t 
 				remainders[0][i] = 1;
 			}
 			efrac_calc(efrac, 0, efrac_size, divisor, remainders[0], intensity);
-			ctr++;
+			ctr += intensity;
 		}
 
 		word_t remaining_divisor = terms % intensity;
@@ -226,7 +230,7 @@ static inline void ecalc(word_t *efrac, size_t efrac_size, word_t terms, word_t 
 			remainders[0][i] = 1;
 		}
 		efrac_calc(efrac, 0, efrac_size, remaining_divisor, remainders[0], remaining_divisor);
-		ctr++;
+		ctr += remaining_divisor;
 
 	}
 	else
@@ -279,11 +283,6 @@ int main(int argc, char **argv)
 	word_t intensity = 1;
 	if(argc >= 2)
 	{
-		if(argv[1][0] == '-')
-		{
-			hex_mode = true;
-			argv[1]++;
-		}
 		sscanf(argv[1], "%" SCNu64, &terms);
 	}
 
@@ -313,10 +312,6 @@ int main(int argc, char **argv)
 
 	// how many decimal digits do we have?
 	size_t digits = to_digits_precision(efrac_size, WORD_SIZE);
-	if(!hex_mode)
-	{
-		fprintf(stderr, "will print %zu digits\n", digits);
-	}
 
 	// set-up timer for progress display
 	timer_t timer;
@@ -339,28 +334,20 @@ int main(int argc, char **argv)
 	timer_settime(timer, TIMER_ABSTIME, &period, NULL);
 
 	// calculate e
-	ecalc(efrac, efrac_size, terms, intensity);
-
-	timer_delete(timer);
+	//ecalc(efrac, efrac_size, terms, intensity);
 
 	putc('\n', stderr);
 
 	// Print the result
-	if(hex_mode)
-	{
-		for(size_t n = 0; n < efrac_size; n++)
-			printf("%" HEX_WIDTH PRIx64 "_", efrac[n]);
-		putchar('\n');
-		return 0;
-	}
-	else
-	{
-		fprintf(stderr, "Printing...\n");
-		printf("e = 2.");
-		print_fraction(efrac, efrac_size, digits, intensity);
-		putchar('\n');
-	}
+	secs = 0;
+	ctr = 0;
 
+	fprintf(stderr, "Printing...\n");
+	printf("e = 2.");
+	print_fraction(efrac, efrac_size, digits, intensity);
+	putchar('\n');
+
+	timer_delete(timer);
 	free(efrac);
 	return 0;
 }
