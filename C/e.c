@@ -20,7 +20,6 @@
 #define false	0
 
 #define WORD_SIZE (64)
-#define HEX_WIDTH "016"
 
 typedef uint64_t word_t;
 #if __SIZEOF_INT128__ != 16
@@ -33,15 +32,6 @@ typedef uint8_t byte;
 double log2fractorial(word_t n)
 {
 	return log2(2 * M_PI)/2 + log2(n) * (n + 0.5) - n / log(2);
-}
-
-void dump_frac(word_t *frac, size_t n)
-{
-	for(size_t i = 0; i < n; i++)
-	{
-		printf("_%" HEX_WIDTH PRIx64, frac[i]);
-	}
-	putchar('\n');
 }
 
 volatile word_t ctr = 0;
@@ -279,7 +269,6 @@ static inline void ecalc(word_t *efrac, size_t efrac_size, word_t terms, word_t 
 
 int main(int argc, char **argv)
 {
-	int hex_mode = false;
 	word_t intensity = 1;
 	if(argc >= 2)
 	{
@@ -334,7 +323,7 @@ int main(int argc, char **argv)
 	timer_settime(timer, TIMER_ABSTIME, &period, NULL);
 
 	// calculate e
-	//ecalc(efrac, efrac_size, terms, intensity);
+	ecalc(efrac, efrac_size, terms, intensity);
 
 	putc('\n', stderr);
 
