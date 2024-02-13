@@ -156,6 +156,19 @@ void print_fraction(word_t *frac, size_t n, size_t digits, word_t intensity)
 	printf(fmtspec, carry);
 }
 
+static inline uint64_t udiv128by64to64(uint64_t u1, uint64_t u0, uint64_t v,
+                                     uint64_t *r) {
+#if defined(__x86_64__)
+  uint64_t  result;
+  __asm__("divq %[v]"
+          : "=a"(result), "=d"(*r)
+          : [ v ] "r"(v), "a"(u0), "d"(u1));
+  return result;
+#else
+  #error "No 128-bit integer support"
+#endif
+}
+
 /* Algorithm by Steve Wozniak in 1980
  * https://archive.org/details/byte-magazine-1981-06/page/n393/mode/1up
  * 
@@ -163,17 +176,15 @@ void print_fraction(word_t *frac, size_t n, size_t digits, word_t intensity)
  */
 
 // Long Fixed-Point Division with remainder
- static inline word_t lfixdiv(word_t * restrict efrac, size_t current, word_t divisor, word_t remainder)
- {
+static inline word_t lfixdiv(word_t * restrict efrac, size_t current, word_t divisor, word_t remainder)
+{
 	if(divisor <= 1)
 		return 0;
 
-	dword_t tmp_partial_dividend = (dword_t)remainder << WORD_SIZE;
-	tmp_partial_dividend |= efrac[current];
-	efrac[current] = tmp_partial_dividend / divisor;
-	tmp_partial_dividend %= divisor;
-	return (word_t)tmp_partial_dividend;
- }
+	word_t tmp_partial_dividend;
+	efrac[current] = udiv128by64to64(remainder, efrac[current], divisor, &tmp_partial_dividend);
+	return tmp_partial_dividend;
+}
 
  static inline void efrac_calc(word_t * restrict efrac, size_t start, size_t end, word_t divisor, word_t * restrict remainders, word_t intensity)
  {
@@ -187,6 +198,65 @@ void print_fraction(word_t *frac, size_t n, size_t digits, word_t intensity)
 		}
 	}
  }
+
+static inline uint64_t computeM_u32(uint32_t d) {
+  return UINT64_C(0xFFFFFFFFFFFFFFFF) / d + 1;
+}
+
+uint64_t *M;
+static inline uint32_t lfixdiv_2mul(uint32_t * restrict efrac, size_t current, word_t divisor, word_t remainder)
+{
+	if(divisor <= 1)
+		return 0;
+
+	uint64_t tmp_partial_dividend = (remainder << 32) | efrac[current];
+	efrac[current] = ((__uint128_t)M[divisor-2] * tmp_partial_dividend) >> 64;
+	return tmp_partial_dividend - efrac[current] * divisor;
+}
+
+static inline void efrac_calc_2mul(uint32_t * restrict efrac, size_t start, size_t end, word_t divisor, uint32_t * restrict remainders, word_t intensity)
+{
+	if(divisor <= 1)
+		return;
+	for(size_t i = start; i < end; i++)
+	{
+		for(word_t j = 0; j < intensity; j++)
+		{
+			remainders[j] = lfixdiv_2mul(efrac, i, divisor - j, remainders[j]);
+		}
+	}
+}
+
+static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, word_t intensity)
+{
+	int maxt = 1;
+	uint32_t remainders[maxt][intensity];
+
+	memset(remainders, 0, sizeof(remainders));
+
+	{
+		fprintf(stderr, "calculating e with 1 thread\n");
+		for(word_t divisor = terms; divisor >= intensity; divisor -= intensity)
+		{
+			for(size_t i = 0; i < intensity; i++)
+			{
+				remainders[0][i] = 1;
+			}
+			efrac_calc_2mul(efrac, 0, efrac_size, divisor, remainders[0], intensity);
+			ctr += intensity;
+		}
+
+		word_t remaining_divisor = terms % intensity;
+
+		for(size_t i = 0; i < intensity; i++)
+		{
+			remainders[0][i] = 1;
+		}
+		efrac_calc_2mul(efrac, 0, efrac_size, remaining_divisor, remainders[0], remaining_divisor);
+		ctr += remaining_divisor;
+
+	}
+}
 
  static inline void ecalc_parallel(size_t efrac_size, word_t * restrict efrac, const word_t intensity, word_t remainders[][intensity], word_t * restrict divisors_pipeline)
  {
@@ -347,8 +417,22 @@ int main(int argc, char **argv)
 	ctr = 0;
 	timer_settime(timer, TIMER_ABSTIME, &period, NULL);
 
+	M = calloc(terms, sizeof(uint64_t));
+	for(size_t i = 0; i < terms-1; i++)
+	{
+		M[i] = computeM_u32(i + 2);
+	}
 	// calculate e
-	ecalc(efrac, efrac_size, terms, intensity);
+	// ecalc(efrac, efrac_size, terms, intensity);
+	ecalc_2mul(efrac, efrac_size*2, terms, intensity);
+
+	// swap higher and lower bits
+	for(size_t i = 0; i < efrac_size*2; i+=2)
+	{
+		uint32_t z = efrac[i];
+		efrac[i] = efrac[i+1];
+		efrac[i+1] = z;
+	}
 
 	putc('\n', stderr);
 
