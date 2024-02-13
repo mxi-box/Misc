@@ -1,7 +1,24 @@
-/* Calculate e with some bignum magic */
-/* NOTE: index 0 is the highest word */
+/* Calculate e with some parallel bignum magic and memory bandwidth saving techniques */
+/* NOTE: index 0 is the highest word (Big Endian) */
 
 /* TODO: clean up the whole parallelism / intensity mess */
+
+/* How the parallelization works:
+ * Because:
+ * 1. the divisor is decreasing from terms to 1
+ * 2. each cell in the fixed-point number array will only be touched once per iteration
+ * 3. calculation in each cell depends on the previous cell
+ * 
+ * So:
+ * 1. the calculation for next iteration could start before the last one completes
+ * 2. it can be implemented as a pipeline
+ * 
+ * What is "intensity":
+ * it's a term I borrowed from GPU mining program, it denotes how many iterations to be
+ * done in a single pass. The higher this value is, the more it decreases memory bandwidth usage.
+ * But this increases usage of L1/L2 cache, be careful not to set it too high. 256 is
+ * generally enough for most usage.
+ */
 
 #define _GNU_SOURCE
 #include <stdio.h>
@@ -22,13 +39,14 @@
 #define WORD_SIZE (64)
 
 typedef uint64_t word_t;
+// support for 128bit integer division is essential to its performance
 #if __SIZEOF_INT128__ != 16
 	#error "No 128-bit integer support"
 #endif
 typedef __uint128_t dword_t; // necessary
 typedef uint8_t byte;
 
-// Calculating the accurate value of log2(n!) isn't that prohibitive on modern hardware
+// approximate log2(n!)
 double log2fractorial(word_t n)
 {
 	return log2(2 * M_PI)/2 + log2(n) * (n + 0.5) - n / log(2);
@@ -38,12 +56,16 @@ volatile word_t ctr = 0;
 volatile word_t secs = 0;
 word_t terms = 5;
 
+// display progress based on ctr/terms
 void display(union sigval sigval)
 {
 	// silence the compiler
 	(void)sigval;
 
 	static word_t last = 0;
+	if(last > terms)
+		last = 0;
+
 	secs += 1;
 	fprintf(stderr, ">%7.3f%% (%" PRIu64 "/%" PRIu64 ") @ %zu op/s (%zu op/s avg.)\n",
 		(float)ctr * 100 / terms,
@@ -55,7 +77,7 @@ void display(union sigval sigval)
 	last = ctr;
 }
 
-size_t to_digits_precision(size_t n, size_t word_size)
+size_t to_decimal_precision(size_t n, size_t word_size)
 {
 	const size_t digits = floor(log(2)/log(10) * n * word_size);
 	return digits;
@@ -70,6 +92,7 @@ static inline word_t intpow10(byte n)
 	return r;
 }
 
+// convert bin to decimal in base 10^19
 #define GROUP_SIZE (19)
 const word_t pow10_19 = 10000000000000000000ULL;
 
@@ -84,6 +107,9 @@ static inline word_t lfixmul(word_t *frac, word_t mul, word_t carry_in)
 void print_fraction(word_t *frac, size_t n, size_t digits, word_t intensity)
 {
 	word_t carrys[intensity];
+
+	// new progress
+	ctr = 0;
 	terms = digits/GROUP_SIZE;
 	// in groups of digits
 	for(size_t i = 0; i < digits/(GROUP_SIZE * intensity); i++)
@@ -104,8 +130,7 @@ void print_fraction(word_t *frac, size_t n, size_t digits, word_t intensity)
 	size_t rest = digits % (GROUP_SIZE * intensity);
 	size_t rest_intensity = rest / GROUP_SIZE;
 
-	// use max possible intensity
-	// 19-digit groups
+	// use max possible intensity in 19-digit group
 	for(size_t j = 0; j < rest_intensity; j++)
 		carrys[j] = 0;
 	for(ssize_t j = n - 1; j >= 0; j--)
@@ -300,7 +325,7 @@ int main(int argc, char **argv)
 	fprintf(stderr, "allocated %zd %dbit words (%zu bit)\n", efrac_size, WORD_SIZE, efrac_size * WORD_SIZE);
 
 	// how many decimal digits do we have?
-	size_t digits = to_digits_precision(efrac_size, WORD_SIZE);
+	size_t digits = to_decimal_precision(efrac_size, WORD_SIZE);
 	fprintf(stderr, "will print %zu digits\n", digits);
 	// set-up timer for progress display
 	timer_t timer;
