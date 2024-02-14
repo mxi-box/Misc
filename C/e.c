@@ -202,27 +202,25 @@ static inline word_t lfixdiv(word_t * restrict efrac, size_t current, word_t div
 static inline uint64_t computeM_u32(uint32_t d) {
   return UINT64_C(0xFFFFFFFFFFFFFFFF) / d + 1;
 }
-
-uint64_t *M;
 static inline uint32_t lfixdiv_2mul(uint32_t * restrict efrac, size_t current, word_t divisor, word_t remainder)
 {
-	if(divisor <= 1)
+	if(divisor == 0)
 		return 0;
 
 	uint64_t tmp_partial_dividend = (remainder << 32) | efrac[current];
-	efrac[current] = ((__uint128_t)M[divisor-2] * tmp_partial_dividend) >> 64;
+	efrac[current] = ((__uint128_t)divisor * tmp_partial_dividend) >> 64;
 	return tmp_partial_dividend - efrac[current] * divisor;
 }
 
-static inline void efrac_calc_2mul(uint32_t * restrict efrac, size_t start, size_t end, word_t divisor, uint32_t * restrict remainders, word_t intensity)
+static inline void efrac_calc_2mul(uint32_t * restrict efrac, size_t start, size_t end, uint64_t divisor[], uint32_t * restrict remainders, word_t intensity)
 {
-	if(divisor <= 1)
+	if(divisor == 0)
 		return;
 	for(size_t i = start; i < end; i++)
 	{
 		for(word_t j = 0; j < intensity; j++)
 		{
-			remainders[j] = lfixdiv_2mul(efrac, i, divisor - j, remainders[j]);
+			remainders[j] = lfixdiv_2mul(efrac, i, divisor[j], remainders[j]);
 		}
 	}
 }
@@ -231,6 +229,8 @@ static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, 
 {
 	int maxt = 1;
 	uint32_t remainders[maxt][intensity];
+	uint64_t M[maxt][intensity];
+
 
 	memset(remainders, 0, sizeof(remainders));
 
@@ -241,18 +241,20 @@ static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, 
 			for(size_t i = 0; i < intensity; i++)
 			{
 				remainders[0][i] = 1;
+				M[0][i] = computeM_u32(divisor - i);
 			}
-			efrac_calc_2mul(efrac, 0, efrac_size, divisor, remainders[0], intensity);
+			efrac_calc_2mul(efrac, 0, efrac_size, M[0], remainders[0], intensity);
 			ctr += intensity;
 		}
 
 		word_t remaining_divisor = terms % intensity;
 
-		for(size_t i = 0; i < intensity; i++)
+		for(size_t i = 0; i < remaining_divisor; i++)
 		{
 			remainders[0][i] = 1;
+			M[0][i] = computeM_u32(remaining_divisor - i);
 		}
-		efrac_calc_2mul(efrac, 0, efrac_size, remaining_divisor, remainders[0], remaining_divisor);
+		efrac_calc_2mul(efrac, 0, efrac_size, M[0], remainders[0], remaining_divisor);
 		ctr += remaining_divisor;
 
 	}
@@ -391,7 +393,7 @@ int main(int argc, char **argv)
 	fprintf(stderr, "estimated required precision: log2(%" PRIu64 "!) ~= %lfbits\n", terms, precision);
 	
 	size_t efrac_size = ceil(precision / WORD_SIZE);
-	word_t *efrac = calloc(efrac_size, sizeof(word_t));
+	uint32_t *efrac = calloc(efrac_size, sizeof(word_t));
 	fprintf(stderr, "allocated %zd %dbit words (%zu bit)\n", efrac_size, WORD_SIZE, efrac_size * WORD_SIZE);
 
 	// how many decimal digits do we have?
@@ -416,15 +418,9 @@ int main(int argc, char **argv)
 
 	ctr = 0;
 	timer_settime(timer, TIMER_ABSTIME, &period, NULL);
-
-	M = calloc(terms, sizeof(uint64_t));
-	for(size_t i = 0; i < terms-1; i++)
-	{
-		M[i] = computeM_u32(i + 2);
-	}
 	// calculate e
-	// ecalc(efrac, efrac_size, terms, intensity);
-	ecalc_2mul(efrac, efrac_size*2, terms, intensity);
+	ecalc(efrac, efrac_size, terms, intensity);
+	//ecalc_2mul(efrac, efrac_size*2, terms, intensity);
 
 	// swap higher and lower bits
 	for(size_t i = 0; i < efrac_size*2; i+=2)
