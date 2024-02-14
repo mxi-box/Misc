@@ -204,9 +204,6 @@ static inline uint64_t computeM_u32(uint32_t d) {
 }
 static inline uint32_t lfixdiv_2mul(uint32_t * restrict efrac, size_t current, word_t divisor, word_t remainder)
 {
-	if(divisor == 0)
-		return 0;
-
 	uint64_t tmp_partial_dividend = (remainder << 32) | efrac[current];
 	efrac[current] = ((__uint128_t)divisor * tmp_partial_dividend) >> 64;
 	return tmp_partial_dividend - efrac[current] * divisor;
@@ -214,50 +211,58 @@ static inline uint32_t lfixdiv_2mul(uint32_t * restrict efrac, size_t current, w
 
 static inline void efrac_calc_2mul(uint32_t * restrict efrac, size_t start, size_t end, uint64_t divisor[], uint32_t * restrict remainders, word_t intensity)
 {
-	if(divisor == 0)
-		return;
-	for(size_t i = start; i < end; i++)
-	{
-		for(word_t j = 0; j < intensity; j++)
-		{
-			remainders[j] = lfixdiv_2mul(efrac, i, divisor[j], remainders[j]);
-		}
-	}
+        if(intensity == 0) return;
+
+        size_t i;
+        for(i = start; i < end-1; i+=2)
+        {
+                remainders[0] = lfixdiv_2mul(efrac, i, divisor[0], remainders[0]);
+                for(word_t j = 1; j < intensity; j++)
+                {
+                        remainders[j-1] = lfixdiv_2mul(efrac, i+1, divisor[j-1], remainders[j-1]);
+                        remainders[j+0] = lfixdiv_2mul(efrac, i+0, divisor[j+0], remainders[j+0]);
+                }
+                remainders[intensity-1] = lfixdiv_2mul(efrac, i+1, divisor[intensity-1], remainders[intensity-1]);
+        }
+        if (i != end) {
+                for(word_t j = 0; j < intensity; j++)
+                {
+                        remainders[j] = lfixdiv_2mul(efrac, i, divisor[j], remainders[j]);
+                }
+        }
 }
 
 static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, word_t intensity)
 {
-	int maxt = 1;
-	uint32_t remainders[maxt][intensity];
-	uint64_t M[maxt][intensity];
+        int maxt = 1;
+        uint32_t remainders[maxt][intensity];
+        uint64_t M[maxt][intensity];
 
+        memset(remainders, 0, sizeof(remainders));
 
-	memset(remainders, 0, sizeof(remainders));
+        {
+                fprintf(stderr, "calculating e with 1 thread\n");
+                word_t divisor;
+                for(divisor = terms; divisor > intensity; divisor -= intensity)
+                {
+                        for(size_t i = 0; i < intensity; i++)
+                        {
+                                remainders[0][i] = 1;
+                                M[0][i] = computeM_u32(divisor - i);
+                        }
+                        efrac_calc_2mul(efrac, 0, efrac_size, M[0], remainders[0], intensity);
+                        __atomic_fetch_add(&ctr, intensity, __ATOMIC_RELAXED);
+                }
 
-	{
-		fprintf(stderr, "calculating e with 1 thread\n");
-		for(word_t divisor = terms; divisor >= intensity; divisor -= intensity)
-		{
-			for(size_t i = 0; i < intensity; i++)
-			{
-				remainders[0][i] = 1;
-				M[0][i] = computeM_u32(divisor - i);
-			}
-			efrac_calc_2mul(efrac, 0, efrac_size, M[0], remainders[0], intensity);
-			ctr += intensity;
-		}
+                for(size_t i = 0; i < divisor-1; i++)
+                {
+                        remainders[0][i] = 1;
+                        M[0][i] = computeM_u32(divisor - i);
+                }
+                efrac_calc_2mul(efrac, 0, efrac_size, M[0], remainders[0], divisor-1);
+                __atomic_fetch_add(&ctr, divisor-1, __ATOMIC_RELAXED);
 
-		word_t remaining_divisor = terms % intensity;
-
-		for(size_t i = 0; i < remaining_divisor; i++)
-		{
-			remainders[0][i] = 1;
-			M[0][i] = computeM_u32(remaining_divisor - i);
-		}
-		efrac_calc_2mul(efrac, 0, efrac_size, M[0], remainders[0], remaining_divisor);
-		ctr += remaining_divisor;
-
-	}
+        }
 }
 
  static inline void ecalc_parallel(size_t efrac_size, word_t * restrict efrac, const word_t intensity, word_t remainders[][intensity], word_t * restrict divisors_pipeline)
