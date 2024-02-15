@@ -300,6 +300,12 @@ static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, 
 					sync[t]++;
 					//ctr += intensity;
 				}
+				int64_t csync = sync[t];
+				#pragma omp flush(sync)
+				for(size_t i = SPIN_TIMES; sync[maxt-1] <= csync - buffer_size; i--) {
+					if(i == 0) sched_yield(), i = SPIN_TIMES;
+					#pragma omp flush(sync)
+				}
 				for(size_t i = 0; i < divisor-1; i++)
 				{
 					remainders[buf_idx][i] = 1;
@@ -324,6 +330,12 @@ static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, 
 					#pragma omp atomic
 					ctr += intensity;
 				}
+				uint32_t csync = sync[t];
+				#pragma omp flush(sync)
+				for(size_t i = SPIN_TIMES; sync[t-1] == csync; i--) {
+					if(i == 0) sched_yield(), i = SPIN_TIMES;
+					#pragma omp flush(sync)
+				}
 				efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], divisor-1);
 				sync[t]++;
 				#pragma omp atomic
@@ -342,6 +354,12 @@ static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, 
 					efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], intensity);
 					buf_idx = buf_idx + 1 == maxt*interthread_buffer ? 0 : buf_idx + 1;
 					sync[t]++;
+				}
+				uint32_t csync = sync[t];
+				#pragma omp flush(sync)
+				for(size_t i = SPIN_TIMES; sync[t-1] == csync; i--) {
+					if(i == 0) sched_yield(), i = SPIN_TIMES;
+					#pragma omp flush(sync)
 				}
 				efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], divisor-1);
 				sync[t]++;
