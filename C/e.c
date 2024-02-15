@@ -32,6 +32,7 @@
 #include <assert.h>
 #include <string.h>
 #include <omp.h>
+#include <sched.h>
 
 #define true	1
 #define false	0
@@ -211,58 +212,143 @@ static inline uint32_t lfixdiv_2mul(uint32_t * restrict efrac, size_t current, w
 
 static inline void efrac_calc_2mul(uint32_t * restrict efrac, size_t start, size_t end, uint64_t divisor[], uint32_t * restrict remainders, word_t intensity)
 {
-        if(intensity == 0) return;
+	if(intensity == 0) return;
 
-        size_t i;
-        for(i = start; i < end-1; i+=2)
-        {
-                remainders[0] = lfixdiv_2mul(efrac, i, divisor[0], remainders[0]);
-                for(word_t j = 1; j < intensity; j++)
-                {
-                        remainders[j-1] = lfixdiv_2mul(efrac, i+1, divisor[j-1], remainders[j-1]);
-                        remainders[j+0] = lfixdiv_2mul(efrac, i+0, divisor[j+0], remainders[j+0]);
-                }
-                remainders[intensity-1] = lfixdiv_2mul(efrac, i+1, divisor[intensity-1], remainders[intensity-1]);
-        }
-        if (i != end) {
-                for(word_t j = 0; j < intensity; j++)
-                {
-                        remainders[j] = lfixdiv_2mul(efrac, i, divisor[j], remainders[j]);
-                }
-        }
+	size_t i;
+	for(i = start; i < end-1; i+=2)
+	{
+		remainders[0] = lfixdiv_2mul(efrac, i, divisor[0], remainders[0]);
+		for(word_t j = 1; j < intensity; j++)
+		{
+			remainders[j-1] = lfixdiv_2mul(efrac, i+1, divisor[j-1], remainders[j-1]);
+			remainders[j+0] = lfixdiv_2mul(efrac, i+0, divisor[j+0], remainders[j+0]);
+		}
+		remainders[intensity-1] = lfixdiv_2mul(efrac, i+1, divisor[intensity-1], remainders[intensity-1]);
+	}
+	if (i != end) {
+		for(word_t j = 0; j < intensity; j++)
+		{
+			remainders[j] = lfixdiv_2mul(efrac, i, divisor[j], remainders[j]);
+		}
+	}
 }
 
+#define SPIN_TIMES (10)
 static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, word_t intensity)
 {
-        int maxt = 1;
-        uint32_t remainders[maxt][intensity];
-        uint64_t M[maxt][intensity];
+	size_t maxt = omp_get_max_threads();
+	const size_t interthread_buffer = 4;
+	uint32_t remainders[maxt*interthread_buffer][intensity];
+	uint64_t M[maxt*interthread_buffer][intensity];
+	uint32_t sync[maxt];
 
-        memset(remainders, 0, sizeof(remainders));
 
-        {
-                fprintf(stderr, "calculating e with 1 thread\n");
-                word_t divisor;
-                for(divisor = terms; divisor > intensity; divisor -= intensity)
-                {
-                        for(size_t i = 0; i < intensity; i++)
-                        {
-                                remainders[0][i] = 1;
-                                M[0][i] = computeM_u32(divisor - i);
-                        }
-                        efrac_calc_2mul(efrac, 0, efrac_size, M[0], remainders[0], intensity);
-                        __atomic_fetch_add(&ctr, intensity, __ATOMIC_RELAXED);
-                }
+	memset(remainders, 0, sizeof(remainders));
 
-                for(size_t i = 0; i < divisor-1; i++)
-                {
-                        remainders[0][i] = 1;
-                        M[0][i] = computeM_u32(divisor - i);
-                }
-                efrac_calc_2mul(efrac, 0, efrac_size, M[0], remainders[0], divisor-1);
-                __atomic_fetch_add(&ctr, divisor-1, __ATOMIC_RELAXED);
+	if(maxt == 1 || efrac_size < maxt)
+	{
+		fprintf(stderr, "calculating e with 1 thread\n");
+		word_t divisor;
+		for(divisor = terms; divisor > intensity; divisor -= intensity)
+		{
+			for(size_t i = 0; i < intensity; i++)
+			{
+				remainders[0][i] = 1;
+				M[0][i] = computeM_u32(divisor - i);
+			}
+			efrac_calc_2mul(efrac, 0, efrac_size, M[0], remainders[0], intensity);
+			__atomic_fetch_add(&ctr, intensity, __ATOMIC_RELAXED);
+		}
 
-        }
+		for(size_t i = 0; i < divisor-1; i++)
+		{
+			remainders[0][i] = 1;
+			M[0][i] = computeM_u32(divisor - i);
+		}
+		efrac_calc_2mul(efrac, 0, efrac_size, M[0], remainders[0], divisor-1);
+		__atomic_fetch_add(&ctr, divisor-1, __ATOMIC_RELAXED);
+
+	} else {
+		fprintf(stderr, "calculating e with %zd threads, intensity = %zd\n", maxt, intensity);
+		memset(sync, 0, sizeof(sync));
+
+		size_t chunk_size = efrac_size / maxt;
+		#pragma omp parallel default(shared)
+		{
+			size_t t = omp_get_thread_num();
+			size_t start = t * chunk_size;
+			size_t end = (t + 1) * chunk_size;
+			uint64_t divisor;
+			uint64_t buf_idx = 0;
+			if(t == 0) {
+				int64_t buffer_size = maxt*interthread_buffer;
+				for(divisor = terms; divisor > intensity; divisor -= intensity)
+				{
+					int64_t csync = sync[t];
+					#pragma omp flush(sync)
+					for(size_t i = SPIN_TIMES; sync[maxt-1] <= csync - buffer_size; i--) {
+						if(i == 0) sched_yield(), i = SPIN_TIMES;
+						#pragma omp flush(sync)
+					}
+					for(size_t i = 0; i < intensity; i++)
+					{
+						remainders[buf_idx][i] = 1;
+						M[buf_idx][i] = computeM_u32(divisor - i);
+					}
+					efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], intensity);
+					buf_idx = buf_idx + 1 == maxt*interthread_buffer ? 0 : buf_idx + 1;
+					sync[t]++;
+					//ctr += intensity;
+				}
+				for(size_t i = 0; i < divisor-1; i++)
+				{
+					remainders[buf_idx][i] = 1;
+					M[buf_idx][i] = computeM_u32(divisor - i);
+				}
+				efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], divisor-1);
+				sync[t]++;
+				//ctr += divisor-1;
+			} else if(t == maxt - 1) {
+
+				for(divisor = terms; divisor > intensity; divisor -= intensity)
+				{
+					uint32_t csync = sync[t];
+					#pragma omp flush(sync)
+					for(size_t i = SPIN_TIMES; sync[t-1] == csync; i--) {
+						if(i == 0) sched_yield(), i = SPIN_TIMES;
+						#pragma omp flush(sync)
+					}
+					efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], intensity);
+					buf_idx = buf_idx + 1 == maxt*interthread_buffer ? 0 : buf_idx + 1;
+					sync[t]++;
+					#pragma omp atomic
+					ctr += intensity;
+				}
+				efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], divisor-1);
+				sync[t]++;
+				#pragma omp atomic
+				ctr += divisor-1;
+
+			} else {
+				
+				for(divisor = terms; divisor > intensity; divisor -= intensity)
+				{
+					uint32_t csync = sync[t];
+					#pragma omp flush(sync)
+					for(size_t i = SPIN_TIMES; sync[t-1] == csync; i--) {
+						if(i == 0) sched_yield(), i = SPIN_TIMES;
+						#pragma omp flush(sync)
+					}
+					efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], intensity);
+					buf_idx = buf_idx + 1 == maxt*interthread_buffer ? 0 : buf_idx + 1;
+					sync[t]++;
+				}
+				efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], divisor-1);
+				sync[t]++;
+				
+			}
+		}
+	}
 }
 
  static inline void ecalc_parallel(size_t efrac_size, word_t * restrict efrac, const word_t intensity, word_t remainders[][intensity], word_t * restrict divisors_pipeline)
@@ -424,8 +510,8 @@ int main(int argc, char **argv)
 	ctr = 0;
 	timer_settime(timer, TIMER_ABSTIME, &period, NULL);
 	// calculate e
-	ecalc(efrac, efrac_size, terms, intensity);
-	//ecalc_2mul(efrac, efrac_size*2, terms, intensity);
+	//ecalc(efrac, efrac_size, terms, intensity);
+	ecalc_2mul(efrac, efrac_size*2, terms, intensity);
 
 	// swap higher and lower bits
 	for(size_t i = 0; i < efrac_size*2; i+=2)
