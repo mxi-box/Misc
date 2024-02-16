@@ -33,6 +33,8 @@
 #include <string.h>
 #include <omp.h>
 #include <sched.h>
+#include <linux/futex.h>
+#include <sys/syscall.h>
 
 #define true	1
 #define false	0
@@ -53,8 +55,7 @@ double log2fractorial(word_t n)
 	return log2(2 * M_PI)/2 + log2(n) * (n + 0.5) - n / log(2);
 }
 
-volatile word_t ctr = 0;
-volatile word_t secs = 0;
+volatile word_t ctr = 0, secs = 0, cfutex = 0;
 word_t terms = 5;
 
 // display progress based on ctr/terms
@@ -68,12 +69,13 @@ void display(union sigval sigval)
 		last = 0;
 
 	secs += 1;
-	fprintf(stderr, ">%7.3f%% (%" PRIu64 "/%" PRIu64 ") @ %zu op/s (%zu op/s avg.)\n",
+	fprintf(stderr, ">%7.3f%% (%" PRIu64 "/%" PRIu64 ") @ %zu op/s (%zu op/s avg.) %zu futex\n",
 		(float)ctr * 100 / terms,
 		ctr,
 		terms,
 		ctr - last,
-		ctr / secs
+		ctr / secs,
+		__atomic_exchange_n(&cfutex, 0, __ATOMIC_RELAXED)
 	);
 	last = ctr;
 }
@@ -210,7 +212,7 @@ static inline uint32_t lfixdiv_2mul(uint32_t * restrict efrac, size_t current, w
 	return tmp_partial_dividend - efrac[current] * divisor;
 }
 
-static inline void efrac_calc_2mul(uint32_t * restrict efrac, size_t start, size_t end, uint64_t divisor[], uint32_t * restrict remainders, word_t intensity)
+static void efrac_calc_2mul(uint32_t * restrict efrac, size_t start, size_t end, uint64_t divisor[], uint32_t * restrict remainders, word_t intensity)
 {
 	if(intensity == 0) return;
 
@@ -233,11 +235,28 @@ static inline void efrac_calc_2mul(uint32_t * restrict efrac, size_t start, size
 	}
 }
 
-#define SPIN_TIMES (10)
+#define SPIN_TIMES (1000)
+static inline void wait_pipeline(volatile uint32_t *a, int64_t b) {
+	uint32_t val = *a;
+	for(size_t i = SPIN_TIMES; val <= b; i--) {
+		if(i == 0) {
+			__atomic_fetch_add(&cfutex, 1, __ATOMIC_RELAXED), i = SPIN_TIMES;
+			syscall(SYS_futex, a, FUTEX_WAIT, val, NULL);
+		}
+		val = *a;
+	}
+}
+
+static inline void notify_pipeline(uint32_t * restrict a, volatile uint32_t * restrict b, int64_t offset) {
+	if(*b == (offset + (*a)++)) 
+		syscall(SYS_futex, a, FUTEX_WAKE, 1, NULL);
+}
+
 static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, word_t intensity)
 {
 	size_t maxt = omp_get_max_threads();
 	const size_t interthread_buffer = 4;
+	int64_t buffer_size = maxt*interthread_buffer;
 	uint32_t remainders[maxt*interthread_buffer][intensity];
 	uint64_t M[maxt*interthread_buffer][intensity];
 	uint32_t sync[maxt];
@@ -267,7 +286,6 @@ static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, 
 		}
 		efrac_calc_2mul(efrac, 0, efrac_size, M[0], remainders[0], divisor-1);
 		__atomic_fetch_add(&ctr, divisor-1, __ATOMIC_RELAXED);
-
 	} else {
 		fprintf(stderr, "calculating e with %zd threads, intensity = %zd\n", maxt, intensity);
 		memset(sync, 0, sizeof(sync));
@@ -275,69 +293,47 @@ static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, 
 		size_t chunk_size = efrac_size / maxt;
 		#pragma omp parallel default(shared)
 		{
-			size_t t = omp_get_thread_num();
+			int t = omp_get_thread_num();
 			size_t start = t * chunk_size;
 			size_t end = (t + 1) * chunk_size;
 			uint64_t divisor;
 			uint64_t buf_idx = 0;
 			if(t == 0) {
-				int64_t buffer_size = maxt*interthread_buffer;
 				for(divisor = terms; divisor > intensity; divisor -= intensity)
 				{
-					int64_t csync = sync[t];
-					#pragma omp flush(sync)
-					for(size_t i = SPIN_TIMES; sync[maxt-1] <= csync - buffer_size; i--) {
-						if(i == 0) sched_yield(), i = SPIN_TIMES;
-						#pragma omp flush(sync)
-					}
+					wait_pipeline(sync+maxt-1, ((int64_t)sync[t]) - buffer_size);
 					for(size_t i = 0; i < intensity; i++)
 					{
 						remainders[buf_idx][i] = 1;
 						M[buf_idx][i] = computeM_u32(divisor - i);
 					}
 					efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], intensity);
-					buf_idx = buf_idx + 1 == maxt*interthread_buffer ? 0 : buf_idx + 1;
-					sync[t]++;
+					buf_idx = buf_idx + 1 == buffer_size ? 0 : buf_idx + 1;
+					notify_pipeline(sync+t, sync+t+1, 0); 
 					//ctr += intensity;
-				}
-				int64_t csync = sync[t];
-				#pragma omp flush(sync)
-				for(size_t i = SPIN_TIMES; sync[maxt-1] <= csync - buffer_size; i--) {
-					if(i == 0) sched_yield(), i = SPIN_TIMES;
-					#pragma omp flush(sync)
 				}
 				for(size_t i = 0; i < divisor-1; i++)
 				{
 					remainders[buf_idx][i] = 1;
 					M[buf_idx][i] = computeM_u32(divisor - i);
 				}
+				wait_pipeline(sync+maxt-1, (int64_t)sync[t] - buffer_size);
 				efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], divisor-1);
-				sync[t]++;
+				notify_pipeline(sync+t, sync+t+1, 0); 
 				//ctr += divisor-1;
 			} else if(t == maxt - 1) {
-
 				for(divisor = terms; divisor > intensity; divisor -= intensity)
 				{
-					uint32_t csync = sync[t];
-					#pragma omp flush(sync)
-					for(size_t i = SPIN_TIMES; sync[t-1] == csync; i--) {
-						if(i == 0) sched_yield(), i = SPIN_TIMES;
-						#pragma omp flush(sync)
-					}
+					wait_pipeline(sync+t-1, sync[t]);
 					efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], intensity);
-					buf_idx = buf_idx + 1 == maxt*interthread_buffer ? 0 : buf_idx + 1;
-					sync[t]++;
+					buf_idx = buf_idx + 1 == buffer_size ? 0 : buf_idx + 1;
+					notify_pipeline(sync+t, sync+0, buffer_size); 
 					#pragma omp atomic
 					ctr += intensity;
 				}
-				uint32_t csync = sync[t];
-				#pragma omp flush(sync)
-				for(size_t i = SPIN_TIMES; sync[t-1] == csync; i--) {
-					if(i == 0) sched_yield(), i = SPIN_TIMES;
-					#pragma omp flush(sync)
-				}
+				wait_pipeline(sync+t-1, sync[t]);
 				efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], divisor-1);
-				sync[t]++;
+				notify_pipeline(sync+t, sync+0, buffer_size); 
 				#pragma omp atomic
 				ctr += divisor-1;
 
@@ -345,24 +341,14 @@ static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, 
 				
 				for(divisor = terms; divisor > intensity; divisor -= intensity)
 				{
-					uint32_t csync = sync[t];
-					#pragma omp flush(sync)
-					for(size_t i = SPIN_TIMES; sync[t-1] == csync; i--) {
-						if(i == 0) sched_yield(), i = SPIN_TIMES;
-						#pragma omp flush(sync)
-					}
+					wait_pipeline(sync+t-1, sync[t]);
 					efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], intensity);
-					buf_idx = buf_idx + 1 == maxt*interthread_buffer ? 0 : buf_idx + 1;
-					sync[t]++;
+					buf_idx = buf_idx + 1 == buffer_size ? 0 : buf_idx + 1;
+					notify_pipeline(sync+t, sync+t+1, 0); 
 				}
-				uint32_t csync = sync[t];
-				#pragma omp flush(sync)
-				for(size_t i = SPIN_TIMES; sync[t-1] == csync; i--) {
-					if(i == 0) sched_yield(), i = SPIN_TIMES;
-					#pragma omp flush(sync)
-				}
+				wait_pipeline(sync+t-1, sync[t]);
 				efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], divisor-1);
-				sync[t]++;
+				notify_pipeline(sync+t, sync+t+1, 0); 
 				
 			}
 		}
@@ -393,85 +379,6 @@ static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, 
 		memcpy(remainders[i], remainders[i - 1], sizeof(remainders[0]));
 	}
  }
-
-static inline void ecalc(word_t *efrac, size_t efrac_size, word_t terms, word_t intensity)
-{
-	int maxt = omp_get_max_threads();
-	word_t divisors_pipeline[maxt];
-	word_t remainders[maxt][intensity];
-
-	// initialize the pipeline
-	for(int i = 0; i < maxt; i++)
-		divisors_pipeline[i] = 0;
-
-	memset(remainders, 0, sizeof(remainders));
-
-	if(efrac_size < (size_t)maxt)
-	{
-		fprintf(stderr, "calculating e with 1 thread\n");
-		for(word_t divisor = terms; divisor >= intensity; divisor -= intensity)
-		{
-			for(size_t i = 0; i < intensity; i++)
-			{
-				remainders[0][i] = 1;
-			}
-			efrac_calc(efrac, 0, efrac_size, divisor, remainders[0], intensity);
-			ctr += intensity;
-		}
-
-		word_t remaining_divisor = terms % intensity;
-
-		for(size_t i = 0; i < intensity; i++)
-		{
-			remainders[0][i] = 1;
-		}
-		efrac_calc(efrac, 0, efrac_size, remaining_divisor, remainders[0], remaining_divisor);
-		ctr += remaining_divisor;
-
-	}
-	else
-	{
-		fprintf(stderr, "calculating e with %d threads, intensity = %zd\n", maxt, intensity);
-		// divisor = 1 is impossible as we don't really store the integer part
-		for(word_t divisor = terms; divisor >= intensity; divisor -= intensity)
-		{
-			for(size_t i = maxt - 1; i > 0; i--)
-				divisors_pipeline[i] = divisors_pipeline[i - 1];
-			divisors_pipeline[0] = divisor;
-
-			ecalc_parallel(efrac_size, efrac, intensity, remainders, divisors_pipeline);
-			ctr += intensity;
-		}
-
-		// finish the pipeline
-		for(int i = 0; i < maxt; i++)
-		{
-			for(int i = maxt - 1; i > 0; i--)
-				divisors_pipeline[i] = divisors_pipeline[i - 1];
-			divisors_pipeline[0] = 0;
-			ecalc_parallel(efrac_size, efrac, intensity, remainders, divisors_pipeline);
-		}
-
-		word_t remaining_intensity = terms % intensity;
-		for(size_t i = maxt - 1; i > 0; i--)
-			divisors_pipeline[i] = divisors_pipeline[i - 1];
-		divisors_pipeline[0] = remaining_intensity;
-
-		ecalc_parallel(efrac_size, efrac, remaining_intensity, remainders, divisors_pipeline);
-		ctr += remaining_intensity;
-	
-		fprintf(stderr, "Finalizing...\n");
-		// finish the pipeline for remaining divisors
-		for(int i = 0; i < maxt; i++)
-		{
-			for(int i = maxt - 1; i > 0; i--)
-				divisors_pipeline[i] = divisors_pipeline[i - 1];
-			divisors_pipeline[0] = 0;
-			ecalc_parallel(efrac_size, efrac, remaining_intensity, remainders, divisors_pipeline);
-		}
-
-	}
-}
 
 int main(int argc, char **argv)
 {
