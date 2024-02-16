@@ -55,7 +55,7 @@ double log2fractorial(word_t n)
 	return log2(2 * M_PI)/2 + log2(n) * (n + 0.5) - n / log(2);
 }
 
-volatile word_t ctr = 0, secs = 0, cfutex = 0;
+volatile word_t ctr = 0, secs = 0, cfutex = 0, ql = 0, qc = 0;
 word_t terms = 5;
 
 // display progress based on ctr/terms
@@ -69,13 +69,14 @@ void display(union sigval sigval)
 		last = 0;
 
 	secs += 1;
-	fprintf(stderr, ">%7.3f%% (%" PRIu64 "/%" PRIu64 ") @ %zu op/s (%zu op/s avg.) %zu futex\n",
+	fprintf(stderr, ">%7.3f%% (%" PRIu64 "/%" PRIu64 ") @ %zu op/s (%zu op/s avg.) futex:%zu avg_queue_length:%.2f\n",
 		(float)ctr * 100 / terms,
 		ctr,
 		terms,
 		ctr - last,
 		ctr / secs,
-		__atomic_exchange_n(&cfutex, 0, __ATOMIC_RELAXED)
+		__atomic_exchange_n(&cfutex, 0, __ATOMIC_RELAXED),
+		(float) __atomic_exchange_n(&ql, 0, __ATOMIC_RELAXED) / __atomic_exchange_n(&qc, 0, __ATOMIC_RELAXED)
 	);
 	last = ctr;
 }
@@ -330,12 +331,20 @@ static inline void ecalc_2mul(uint32_t *efrac, size_t efrac_size, word_t terms, 
 					notify_pipeline(sync+t, sync+0, buffer_size); 
 					#pragma omp atomic
 					ctr += intensity;
+					#pragma omp atomic
+				    	ql += sync[0] - sync[t];
+					#pragma omp atomic
+					qc++;
 				}
 				wait_pipeline(sync+t-1, sync[t]);
 				efrac_calc_2mul(efrac, start, end, M[buf_idx], remainders[buf_idx], divisor-1);
 				notify_pipeline(sync+t, sync+0, buffer_size); 
 				#pragma omp atomic
 				ctr += divisor-1;
+				#pragma omp atomic
+				ql += sync[0] - sync[t];
+				#pragma omp atomic
+				qc++;
 
 			} else {
 				
